@@ -77,6 +77,150 @@
     a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
     .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+
+    /* Header */
+    header {
+      padding: 18px 0;
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      background: rgba(15,14,12,.92);
+      backdrop-filter: blur(12px);
+      z-index: 50;
+    }
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: var(--fg);
+      letter-spacing: -0.02em;
+    }
+    .logo span { color: var(--accent); }
+    nav { display: flex; gap: 20px; align-items: center; font-size: 0.95rem; }
+    nav a { color: var(--muted); }
+    nav a:hover { color: var(--fg); text-decoration: none; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--accent);
+      color: #1c0c05;
+      font-weight: 600;
+      padding: 10px 18px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.95rem;
+      transition: transform .15s, box-shadow .15s;
+    }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(255,107,61,.35); text-decoration: none; color: #1c0c05; }
+    .btn-outline {
+      background: transparent;
+      color: var(--fg);
+      border: 1px solid var(--line);
+    }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Hero */
+    .hero {
+      padding: 72px 0 56px;
+      text-align: center;
+    }
+    .hero h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2.2rem, 5vw, 3.4rem);
+      line-height: 1.15;
+      margin-bottom: 18px;
+      letter-spacing: -0.03em;
+    }
+    .hero h1 em { font-style: italic; color: var(--accent); }
+    .hero p {
+      font-size: 1.15rem;
+      color: var(--muted);
+      max-width: 560px;
+      margin: 0 auto 28px;
+    }
+    .hero-cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .badge {
+      display: inline-block;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-bottom: 16px;
+    }
+
+    /* Features */
+    .features {
+      padding: 48px 0 64px;
+    }
+    .features h2 {
+      text-align: center;
+      font-size: 1.6rem;
+      margin-bottom: 36px;
+      font-family: 'Playfair Display', serif;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 20px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 22px;
+      transition: border-color .2s;
+    }
+    .card:hover { border-color: var(--accent); }
+    .card h3 { font-size: 1.05rem; margin-bottom: 8px; }
+    .card p { color: var(--muted); font-size: 0.92rem; }
+
+    /* CTA band */
+    .cta-band {
+      background: linear-gradient(135deg, #1f1c18, #2a231c);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 40px 28px;
+      text-align: center;
+      margin: 20px 0 60px;
+    }
+    .cta-band h2 { font-size: 1.5rem; margin-bottom: 10px; }
+    .cta-band p { color: var(--muted); margin-bottom: 20px; }
+
+    /* FAQ */
+    .faq { padding: 20px 0 70px; }
+    .faq h2 { text-align: center; margin-bottom: 28px; font-family: 'Playfair Display', serif; }
+    details {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      margin-bottom: 10px;
+      padding: 14px 18px;
+    }
+    summary { cursor: pointer; font-weight: 500; }
+    details p { margin-top: 10px; color: var(--muted); font-size: 0.95rem; }
+
+    footer {
+      border-top: 1px solid var(--line);
+      padding: 28px 0;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 600px) {
+      .header-inner { flex-wrap: wrap; }
+      nav { width: 100%; justify-content: center; }
+    }
   </style>
   <!-- Vercel Analytics -->
   <script>
@@ -85,6 +229,98 @@
   <script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
-  <p style="padding:40px;text-align:center;">Loading full landing... If you see this, the full index was truncated in this tool call. The real push will use complete files.</p>
+  <header>
+    <div class="wrap header-inner">
+      <a href="/" class="logo">Grain<span>room</span></a>
+      <nav>
+        <a href="/fr">FR</a>
+        <a href="/editor">Editor</a>
+        <a href="/editor" class="btn">Open Editor →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero wrap">
+      <div class="badge">100% Free · No signup · No watermark</div>
+      <h1>Free Photoshop Online<br><em>in your browser</em></h1>
+      <p>Real layers, masks, clone stamp, healing brush and non-destructive adjustments. Open a photo and start editing instantly.</p>
+      <div class="hero-cta">
+        <a href="/editor" class="btn">Start Editing Free</a>
+        <a href="#features" class="btn btn-outline">See features</a>
+      </div>
+    </section>
+
+    <section class="features wrap" id="features">
+      <h2>Everything you need for real photo work</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Layers & Blend Modes</h3>
+          <p>Full layer stack with opacity, visibility and common blend modes.</p>
+        </div>
+        <div class="card">
+          <h3>Layer Masks</h3>
+          <p>Paint masks, invert and refine — non-destructive editing.</p>
+        </div>
+        <div class="card">
+          <h3>Clone & Heal</h3>
+          <p>Clone stamp and spot healing for clean retouching.</p>
+        </div>
+        <div class="card">
+          <h3>Magic Wand & Selections</h3>
+          <p>Quick selections, feather, invert and more.</p>
+        </div>
+        <div class="card">
+          <h3>Adjustments</h3>
+          <p>Exposure, curves, HSL, temperature and creative looks.</p>
+        </div>
+        <div class="card">
+          <h3>Export</h3>
+          <p>PNG, JPEG or WebP with quality and scale control.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap">
+      <div class="cta-band">
+        <h2>Ready to edit?</h2>
+        <p>No account. No install. Just open the editor and drop your photo.</p>
+        <a href="/editor" class="btn">Open Grainroom Editor</a>
+      </div>
+    </section>
+
+    <section class="faq wrap">
+      <h2>Frequently asked questions</h2>
+      <details>
+        <summary>Is Grainroom really free?</summary>
+        <p>Yes. Completely free, no account required, no watermarks on exports.</p>
+      </details>
+      <details>
+        <summary>Does my photo leave my computer?</summary>
+        <p>No. Everything runs locally in your browser. Nothing is uploaded to our servers.</p>
+      </details>
+      <details>
+        <summary>Can I use it for commercial work?</summary>
+        <p>Yes. You can use the editor and the files you export for personal and commercial projects.</p>
+      </details>
+      <details>
+        <summary>Is this affiliated with Adobe?</summary>
+        <p>No. Grainroom is an independent free alternative. “Photoshop” is a trademark of Adobe Inc.</p>
+      </details>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <p>
+        <strong>Grainroom</strong> — Free online photo editor · 
+        <a href="/editor">Open editor</a> · 
+        <a href="/fr">Version française</a>
+      </p>
+      <p style="margin-top: 8px; font-size: 0.85rem;">
+        Not affiliated with Adobe. “Photoshop” is a trademark of Adobe Inc. Used here only to describe the category of tool.
+      </p>
+    </div>
+  </footer>
 </body>
 </html>
