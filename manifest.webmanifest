@@ -1,0 +1,20 @@
+{
+  "name": "Grainroom — Free Photoshop Online",
+  "short_name": "Grainroom",
+  "description": "Free browser photo editor with layers, masks, selections, filters and export. Works offline.",
+  "start_url": "/editor",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#14120f",
+  "theme_color": "#14120f",
+  "categories": ["photo", "graphics", "productivity"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "New editor session", "url": "/editor" }
+  ]
+}
