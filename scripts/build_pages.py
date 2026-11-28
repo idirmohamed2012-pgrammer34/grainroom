@@ -312,7 +312,7 @@ def privacy():
 <p>To make the editor convenient it saves some things in your browser: an autosave of your current project (IndexedDB), small preferences (local storage) and a cache of the site files so it works offline (service worker). This data never leaves your device. You can clear it from your browser settings at any time.</p></section>
 <section class="block"><h2>Analytics and third parties</h2>
 <ul><li>We use Vercel Web Analytics to count page views. It is designed to be privacy-friendly and does not use cookies.</li>
-<li>When enabled, we use Google Analytics 4 to understand which pages and tools are used. It is loaded <strong>only if you click Accept</strong> on the cookie banner, sets cookies (such as _ga) and sends anonymised usage data to Google. You can change your choice any time with “Cookie settings” in the footer. Your photos and files are never part of this data.</li>
+<li>When enabled, we use Google Tag Manager and Google Analytics to understand which pages and tools are used. It is loaded <strong>only if you click Accept</strong> on the cookie banner, sets cookies (such as _ga) and sends anonymised usage data to Google. You can change your choice any time with “Cookie settings” in the footer. Your photos and files are never part of this data.</li>
 <li>Fonts are loaded from Google Fonts, which means your browser contacts Google to download them.</li>
 <li>The site is hosted on Vercel, which processes standard server logs such as IP address to deliver pages.</li></ul></section>
 <section class="block"><h2>Contact</h2><p>Questions? Open an issue on <a href="{ISSUES}" rel="noopener">GitHub</a>.</p></section>

@@ -1,10 +1,11 @@
-/* Grainroom: Google Analytics 4 with a consent banner.
-   1) Put your GA4 Measurement ID below (looks like G-ABC123XYZ9). Until you do, nothing loads and no banner shows.
-   2) Google Analytics is loaded ONLY after the visitor clicks Accept. */
+/* Grainroom: Google Tag Manager (GTM-...) or Google Analytics 4 (G-...) behind a consent banner.
+   Set the ID below. The tag is loaded ONLY after the visitor clicks Accept.
+   Use 'G-XXXXXXXXXX' to disable everything (no banner, no cookies). */
 (function () {
   'use strict';
-  var GA_ID = 'G-XXXXXXXXXX';
-  if (!/^G-[A-Z0-9]{6,}$/.test(GA_ID) || GA_ID === 'G-XXXXXXXXXX') return;
+  var GA_ID = 'GTM-TQH8Z378';
+  if (!/^(G|GTM)-[A-Z0-9]{6,}$/.test(GA_ID) || GA_ID === 'G-XXXXXXXXXX') return;
+  var IS_GTM = GA_ID.indexOf('GTM-') === 0;
   var KEY = 'gr-consent', fr = /^fr/i.test(document.documentElement.lang || '');
   var T = fr ? { t: 'Nous utilisons Google Analytics pour mesurer l’audience. Vos photos ne sont jamais envoyées.', a: 'Accepter', d: 'Refuser', m: 'En savoir plus' }
              : { t: 'We use Google Analytics to measure traffic. Your photos are never uploaded.', a: 'Accept', d: 'Decline', m: 'Learn more' };
@@ -15,9 +16,16 @@
     if (loaded) return; loaded = true;
     window.dataLayer = window.dataLayer || [];
     window.gtag = function () { window.dataLayer.push(arguments); };
-    window.gtag('js', new Date());
-    window.gtag('config', GA_ID, { anonymize_ip: true });
-    var s = document.createElement('script'); s.async = true; s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID; document.head.appendChild(s);
+    var s = document.createElement('script'); s.async = true;
+    if (IS_GTM) {
+      window.dataLayer.push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' });
+      s.src = 'https://www.googletagmanager.com/gtm.js?id=' + GA_ID;
+    } else {
+      window.gtag('js', new Date());
+      window.gtag('config', GA_ID, { anonymize_ip: true });
+      s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
+    }
+    document.head.appendChild(s);
   }
   function banner() {
     if (document.getElementById('gr-consent')) return;
