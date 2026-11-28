@@ -118,9 +118,63 @@ TOOLS = [
        ('Will quality be reduced?', 'Images are embedded as high-quality JPEG (90% by default, adjustable). Transparent areas become white.')],
       ['compress', 'resize', 'collage', 'png-to-jpg'], ['Free', 'No upload', 'No watermark']),
 ]
+
+def simple(slug, icon, cat, name, desc_what, h1, lead, steps, faqs, related, badges=('Free', 'No upload', 'Batch')):
+    return T(slug, icon, cat, name, f'{name} — Free Online Tool | Grainroom', f'{desc_what} Free, private and fast: runs in your browser, nothing is uploaded.', h1, lead, steps, faqs, related, list(badges))
+
+PRIV = ('Is my file uploaded?', 'No. Everything is processed on your device by your browser. Nothing is sent to a server.')
+TOOLS += [
+    simple('rotate', '↻', 'Edit', 'Rotate & Flip Images', 'Rotate images 90°, 180° or flip them horizontally and vertically in batch.', 'Rotate and flip images online',
+           'Fix sideways photos or mirror an image. Works on many files at once.',
+           ['Drop your images on the box above.', 'Choose rotate 90° left or right, 180°, or flip horizontally or vertically.', 'Download the results or a ZIP.'],
+           [PRIV, ('Does rotating lose quality?', 'Rotating by 90° steps is exact. Saving as JPG or WebP re-encodes the image, so use quality 92% or higher, or choose PNG for no loss.'), ('Can I rotate many photos?', 'Yes. Every file you add gets the same action.')],
+           ['crop-image', 'resize', 'photo-filters', 'compress']),
+    simple('crop-image', '✂️', 'Edit', 'Crop Image to Size', 'Crop images to Instagram, TikTok, YouTube, Facebook, X or LinkedIn sizes, or a custom size.', 'Crop images to social media sizes',
+           'Get the exact pixel size each platform wants. Move the focus point to choose which part of the photo stays in frame.',
+           ['Drop your images on the box above.', 'Pick a preset like Instagram post or YouTube thumbnail, or enter a custom size.', 'Adjust the horizontal and vertical focus, then download.'],
+           [PRIV, ('How does the crop work?', 'The image is scaled to fill the target size and the extra edges are cut off. The focus sliders decide which side is trimmed.'), ('Which sizes are available?', 'Instagram post, portrait and story, YouTube thumbnail, Facebook post and cover, X header, LinkedIn banner, a square ID size and custom.')],
+           ['resize', 'rotate', 'compress', 'collage']),
+    simple('photo-filters', '🎞️', 'Edit', 'Photo Filters', 'Apply black and white, sepia, vintage and more filters to photos, with brightness, contrast and saturation controls.', 'Apply filters to photos online',
+           'Give your photos a look in seconds: black and white, sepia, vintage, vivid, faded film, cool or warm. Fine-tune brightness, contrast, saturation and blur.',
+           ['Drop your photos on the box above.', 'Pick a look and tweak the sliders.', 'Download the results or a ZIP.'],
+           [PRIV, ('Can I apply the same filter to many photos?', 'Yes, all added photos update live with your settings.'), ('Why does it need a modern browser?', 'Filters use the browser canvas filter feature, available in Chrome, Edge and Firefox. For more control use the full Grainroom editor with film looks and adjustments.')],
+           ['rotate', 'crop-image', 'watermark', 'compress']),
+    simple('favicon', '⭐', 'Design', 'Favicon Generator', 'Turn any logo or image into a complete favicon pack: favicon.ico, PNG sizes, Apple touch icon and Android icons.', 'Favicon generator',
+           'Create every icon size your website needs from one image. Download a ZIP with favicon.ico, 16/32/48 px PNGs, the Apple touch icon and 192/512 px Android icons.',
+           ['Drop your logo or image (a square one works best).', 'Optionally set a background colour and padding.', 'Download the ZIP and copy the HTML lines from the included text file into your site head.'],
+           [PRIV, ('What sizes are included?', 'favicon.ico (16, 32, 48), PNGs at 16, 32 and 48, apple-touch-icon at 180, and Android icons at 192 and 512.'), ('What image should I start with?', 'A square image of at least 512 × 512 px. Simple logos with a transparent background work best.')],
+           ['resize', 'crop-image', 'png-to-webp', 'image-to-base64'], ('Free', 'No upload')),
+    simple('image-to-base64', '🔣', 'Convert', 'Image to Base64', 'Convert an image to a Base64 data URI, an HTML img tag or CSS background.', 'Convert image to Base64',
+           'Embed small images directly in HTML or CSS. Get a data URI, an img tag, a CSS background rule or the raw Base64 string.',
+           ['Drop an image on the box above.', 'Choose the output style.', 'Click Copy.'],
+           [PRIV, ('When should I use Base64 images?', 'For very small images such as icons, where saving an extra request helps. Base64 makes data about 33% bigger, so large photos are better as normal files.')],
+           ['compress', 'favicon', 'png-to-webp', 'resize'], ('Free', 'No upload')),
+    conv('svg', 'png', 'SVG', 'PNG', 'Pick the output width for a sharp result at any size.', 'PNG is a raster image, so choose an output width large enough for where you will use it. SVG itself stays perfectly sharp at any size.'),
+    conv('avif', 'jpg', 'AVIF', 'JPG', 'Open AVIF photos in software that does not support them yet.', 'JPG is lossy, so keep the quality at 90% or above. Transparent areas are filled with the background colour you choose.'),
+    conv('avif', 'png', 'AVIF', 'PNG', 'PNG keeps transparency and works everywhere.', 'PNG is lossless, so no more quality is lost. The file will be larger than the AVIF.'),
+    conv('gif', 'png', 'GIF', 'PNG', 'Extracts the first frame of the GIF as a PNG.', 'PNG is lossless. For animated GIFs only the first frame is converted.'),
+    conv('gif', 'jpg', 'GIF', 'JPG', 'Extracts the first frame of the GIF as a JPG.', 'JPG is lossy but at 90% quality the difference is invisible. For animated GIFs only the first frame is converted.'),
+    conv('bmp', 'jpg', 'BMP', 'JPG', 'BMP files are huge. JPG makes them far smaller.', 'JPG is lossy, but at 90% quality the difference is invisible, and the file is usually 90% smaller than the BMP.'),
+    conv('bmp', 'png', 'BMP', 'PNG', 'PNG is lossless and much smaller than BMP.', 'PNG is lossless, so the picture is identical to the BMP and the file is much smaller.'),
+    simple('merge-pdf', '📚', 'PDF', 'Merge PDF', 'Combine several PDF files into one document in the order you choose.', 'Merge PDF files online',
+           'Join PDFs into a single file. Reorder them with the arrows, then download the merged document.',
+           ['Add two or more PDF files.', 'Reorder them with the arrows.', 'Click Merge PDFs and download.'],
+           [PRIV, ('Is there a size or page limit?', 'No fixed limit. Very large files depend on your device memory.'), ('Does merging change the quality?', 'No. Pages are copied as they are, so text stays selectable and images keep their quality.'), ('Can it merge password-protected PDFs?', 'Not if they need a password to open. Remove the password first.')],
+           ['split-pdf', 'rotate-pdf', 'image-to-pdf', 'compress'], ('Free', 'No upload', 'No watermark')),
+    simple('split-pdf', '✂️', 'PDF', 'Split PDF', 'Extract pages or split a PDF into several files by page ranges.', 'Split PDF and extract pages',
+           'Pull out the pages you need, split into parts, or save every page as its own PDF.',
+           ['Add a PDF. The page count appears.', 'Type pages or ranges such as 1-3, 5, 8-.', 'Choose one PDF with those pages, one PDF per range, or every page separately, then download.'],
+           [PRIV, ('What is the range format?', 'Use commas and dashes: 1-3, 5, 8- means pages 1 to 3, page 5 and page 8 to the end.'), ('Is quality kept?', 'Yes. Pages are copied without recompressing.')],
+           ['merge-pdf', 'rotate-pdf', 'image-to-pdf', 'compress'], ('Free', 'No upload', 'No watermark')),
+    simple('rotate-pdf', '🔃', 'PDF', 'Rotate PDF', 'Rotate all pages or selected pages of a PDF by 90, 180 or 270 degrees.', 'Rotate PDF pages online',
+           'Fix scanned documents that came out sideways. Rotate every page or only the ones you choose.',
+           ['Add a PDF.', 'Choose the rotation and, optionally, which pages.', 'Click Rotate PDF and download.'],
+           [PRIV, ('Can I rotate only some pages?', 'Yes, enter ranges like 2-4, 7. Leave blank for all pages.'), ('Is quality kept?', 'Yes. The rotation is stored in the PDF and nothing is recompressed.')],
+           ['merge-pdf', 'split-pdf', 'image-to-pdf', 'rotate'], ('Free', 'No upload', 'No watermark')),
+]
 BY = {t['slug']: t for t in TOOLS}
-CATS = ['Optimise', 'Convert', 'Create', 'Privacy', 'Design']
-CAT_DESC = {'Optimise': 'Make images lighter and the right size', 'Convert': 'Switch between image formats and PDF', 'Create': 'Make collages, memes and watermarks', 'Privacy': 'Protect what you share', 'Design': 'Colour tools'}
+CATS = ['Optimise', 'Edit', 'Convert', 'PDF', 'Create', 'Privacy', 'Design']
+CAT_DESC = {'Edit': 'Rotate, crop and filter photos', 'PDF': 'Merge, split and rotate PDF files', 'Optimise': 'Make images lighter and the right size', 'Convert': 'Switch between image formats and PDF', 'Create': 'Make collages, memes and watermarks', 'Privacy': 'Protect what you share', 'Design': 'Colour tools'}
 
 FONTS = '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Playfair+Display:wght@700&display=swap">'
 
@@ -222,8 +276,10 @@ def hub():
 <div class="hero"><h1>Free online image tools</h1><p class="lead">Quick tools for everyday image jobs. Web app, in the browser, no download, no signup. Your files never leave your device.</p>
 <div class="badges"><span class="badge"><b>✓</b> En ligne</span><span class="badge"><b>✓</b> Dans le navigateur</span><span class="badge"><b>✓</b> Sans téléchargement</span><span class="badge"><b>✓</b> 100% private</span></div></div>
 <a class="card" href="/editor" style="margin:10px 0 0;border-color:var(--accent)"><div class="ic">🖼️</div><h3>Grainroom Photo Editor</h3><p>The full editor: layers, masks, selections, retouching, film looks and more. Free in your browser.</p></a>
-{body}
+<input id="q" type="search" placeholder="Search tools (e.g. compress, pdf, png)…" aria-label="Search tools" style="width:100%;margin:18px 0 0;padding:12px 14px;background:var(--panel);border:1px solid var(--line);border-radius:10px;color:var(--fg);font:inherit">
+<div id="all">{body}</div><p id="none" class="stat" style="display:none;color:var(--muted);margin-top:20px">No tool matches your search.</p>
 </main>
+<script>(function(){{var q=document.getElementById('q'),n=document.getElementById('none');q.addEventListener('input',function(){{var v=q.value.trim().toLowerCase(),shown=0;document.querySelectorAll('#all .card').forEach(function(c){{var m=!v||c.textContent.toLowerCase().indexOf(v)>-1||(c.getAttribute('href')||'').indexOf(v)>-1;c.style.display=m?'':'none';if(m)shown++}});document.querySelectorAll('#all .cat').forEach(function(h){{var g=h.nextElementSibling,any=Array.prototype.some.call(g.children,function(c){{return c.style.display!=='none'}});h.style.display=g.style.display=any?'':'none'}});n.style.display=shown?'none':''}})}})();</script>
 ''' + footer())
 
 def about():
