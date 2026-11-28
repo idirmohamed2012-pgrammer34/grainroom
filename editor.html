@@ -99,7 +99,7 @@ button{cursor:pointer}
 
 .side{grid-area:side;display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .tabs{display:flex;border-bottom:1px solid var(--line);overflow-x:auto;flex:none}
-.tab{flex:1;background:none;border:0;padding:9px 8px;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
+.tab{flex:1;background:none;border:0;padding:9px 6px;font-size:12px;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
 .tab:hover{color:var(--fg)}
 .tab[aria-selected=true]{color:var(--fg);border-bottom-color:var(--accent);font-weight:700}
 .panel{flex:1;min-height:0;overflow:auto;padding:10px}
@@ -192,6 +192,7 @@ input[type=color]{width:30px;height:26px;padding:0;border:1px solid var(--line);
       <button class="btn" id="zFit" title="Fit to screen (0)">Fit</button>
     </div>
     <div class="spacer"></div>
+    <button class="btn" id="bCompare" title="Hold to see the original (\)">Compare</button>
     <button class="btn" id="bSave" title="Save project file (Ctrl+S)">Save</button>
     <button class="btn" id="bHelp" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">?</button>
     <button class="btn" id="bTheme" aria-label="Toggle light and dark theme" title="Toggle theme">Theme</button>
@@ -212,6 +213,7 @@ input[type=color]{width:30px;height:26px;padding:0;border:1px solid var(--line);
       <button class="tab" role="tab" data-tab="adjust">Adjust</button>
       <button class="tab" role="tab" data-tab="style">Style</button>
       <button class="tab" role="tab" data-tab="color">Colour</button>
+      <button class="tab" role="tab" data-tab="assets">Assets</button>
       <button class="tab" role="tab" data-tab="history">History</button>
     </div>
     <div class="panel" id="panel"></div>
@@ -228,7 +230,7 @@ const $=s=>document.querySelector(s);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const MAXSIDE=3000, MAXDOC=6000;
-const BRUSHY=new Set(['brush','eraser','clone','heal','tone','smudge']);
+const BRUSHY=new Set(['brush','eraser','clone','heal','tone','smudge','liquify','redeye']);
 
 /* ---------- colour helpers ---------- */
 function hexRGB(h){h=h.replace('#','');if(h.length===3)h=h.split('').map(x=>x+x).join('');const n=parseInt(h,16);return[(n>>16)&255,(n>>8)&255,n&255]}
@@ -238,7 +240,7 @@ function toHex(r,g,b){return'#'+[r,g,b].map(v=>clamp(Math.round(v),0,255).toStri
 /* ---------- state ---------- */
 const cv=$('#cv'),ctx=cv.getContext('2d'),ov=$('#ov'),octx=ov.getContext('2d'),stage=$('#stage'),board=$('#board'),panel=$('#panel');
 const S={w:1600,h:1000,layers:[],active:null,sel:null,zoom:1,fit:true,tool:'move',fg:'#ff6b3d',bg:'#ffffff',
-  brush:{size:36,hard:50,opacity:100,smooth:0},bucket:{tol:32},wand:{tol:32,contiguous:true},tone:{mode:'dodge',strength:25},grad:{mode:'fgbg',shape:'linear'},shape:{kind:'rect',fill:true,stroke:0},
+  brush:{size:36,hard:50,opacity:100,smooth:0},bucket:{tol:32},wand:{tol:32,contiguous:true},tone:{mode:'dodge',strength:25},grad:{mode:'fgbg',shape:'linear'},liq:{mode:'push'},shape:{kind:'rect',fill:true,stroke:0},
   crop:null,cropBase:null,angle:0,cropAspect:'free',clone:{src:null},tab:'layers',autoSelect:true,hist:[],hi:-1,drag:null,cursor:null,space:false,
   ft:null, /* free transform state */ rulers:true, guides:[], clip:false};
 let uid=1;
@@ -266,10 +268,13 @@ const ICON={
  shape:'<rect x="3.5" y="3.5" width="10" height="10"/><circle cx="15.5" cy="15.5" r="5"/>',
  hand:'<path d="M8 13V6a1.5 1.5 0 0 1 3 0v5M11 11V4.5a1.5 1.5 0 0 1 3 0V11M14 11V6a1.5 1.5 0 0 1 3 0v8c0 4-2 6-5 6-3 0-4-1.5-6-4l-1.5-2.5a1.5 1.5 0 0 1 2.5-1.5L8 14"/>',
  wand:'<path d="M15 4l-1 4 3 1-4 1-1 4-1-4-4-1 4-1zM4 15l2 1 1 2 1-2 2-1-2-1-1-2-1 2z"/><path d="M12 12l6 6"/>',
+ liquify:'<path d="M3 6c3-3 5 3 9 0s6 3 9 0M3 12c3-3 5 3 9 0s6 3 9 0M3 18c3-3 5 3 9 0s6 3 9 0"/>',
+ redeye:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+ magiceraser:'<path d="M4 16l9-9a2 2 0 0 1 3 0l3 3a2 2 0 0 1 0 3l-6 6H8zM7.5 12.5l6 6"/><path d="M19 3v4M17 5h4"/>',
  transform:'<path d="M4 4h4v4H4zM16 4h4v4h-4zM4 16h4v4H4zM16 16h4v4h-4zM8 6h8M6 8v8M18 8v8M8 18h8"/>'
 };
 const TOOLS=[['move','Move','V'],['crop','Crop','C'],['transform','Free Transform','Ctrl+T'],['|'],['rect','Rectangle select','M'],['ellipse','Ellipse select','O'],['lasso','Lasso select','L'],['wand','Magic Wand','W'],['|'],
- ['brush','Brush','B'],['eraser','Eraser','E'],['bucket','Paint bucket','G'],['gradient','Gradient','R'],['clone','Clone stamp','S'],['heal','Spot heal','J'],['tone','Dodge, burn and sponge','D'],['smudge','Smudge','K'],['eyedrop','Eyedropper','I'],['|'],['text','Text','T'],['shape','Shape','U'],['hand','Hand','H']];
+ ['brush','Brush','B'],['eraser','Eraser','E'],['bucket','Paint bucket','G'],['gradient','Gradient','R'],['clone','Clone stamp','S'],['heal','Spot heal','J'],['tone','Dodge, burn and sponge','D'],['smudge','Smudge','K'],['liquify','Liquify','Y'],['redeye','Red-eye fix','Z'],['magiceraser','Magic eraser','N'],['eyedrop','Eyedropper','I'],['|'],['text','Text','T'],['shape','Shape','U'],['hand','Hand','H']];
 const ico=n=>`<svg viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
 
 /* ---------- adjustments ---------- */
@@ -299,7 +304,12 @@ function applyLut(g,a){
 const filterStr=a=>`brightness(${a.brightness}%) contrast(${a.contrast}%) saturate(${a.saturation}%) hue-rotate(${a.hue}deg) blur(${a.blur}px) grayscale(${a.gray}%) sepia(${a.sepia}%)${a.invert?' invert(100%)':''}`;
 const HAS_FILTER=(()=>{try{return'filter'in mkCanvas(1,1).getContext('2d')}catch{return false}})();
 const LOOKS={Original:{},Vivid:{contrast:112,saturation:140},Matte:{contrast:88,brightness:104,saturation:90,sepia:12},Noir:{gray:100,contrast:130,brightness:92},
-  Warm:{sepia:22,saturation:115,hue:-8,brightness:104},Cool:{hue:12,saturation:92,contrast:106,brightness:102},Fade:{contrast:84,brightness:112,saturation:80},Punch:{contrast:125,saturation:125,brightness:96}};
+  Warm:{sepia:22,saturation:115,hue:-8,brightness:104},Cool:{hue:12,saturation:92,contrast:106,brightness:102},Fade:{contrast:84,brightness:112,saturation:80},Punch:{contrast:125,saturation:125,brightness:96},
+  'Kodak 400':{contrast:108,saturation:112,temp:18,tint:-6,vignette:25,sepia:10,brightness:102},'Fuji Velvia':{saturation:150,contrast:115,vibrance:20,temp:-6},
+  Polaroid:{contrast:92,brightness:108,saturation:88,temp:22,tint:8,vignette:18,sepia:14},Cinematic:{contrast:118,saturation:88,temp:-14,shadows:18,highlights:-12,vignette:30},
+  Sunset:{temp:35,saturation:130,contrast:108,vibrance:25},'Cross process':{contrast:125,saturation:130,hue:10,temp:-18,tint:14},'Retro 70s':{sepia:35,saturation:115,contrast:95,brightness:106,temp:20,vignette:35},
+  Lomo:{contrast:135,saturation:140,vignette:60,brightness:98},'B&W film':{gray:100,contrast:125,sharpen:25,vignette:35,brightness:98},'Faded film':{contrast:85,brightness:110,saturation:75,shadows:30,sepia:8},
+  'Crisp HDR':{clarity:70,vibrance:40,contrast:112,sharpen:30,shadows:30,highlights:-30},Moody:{contrast:118,brightness:90,saturation:85,shadows:-15,vignette:40}};
 function pixelAdj(g,a){ // fallback when ctx.filter is missing (hue and blur skipped)
   const w=g.canvas.width,h=g.canvas.height,id=g.getImageData(0,0,w,h),d=id.data;
   const b=a.brightness/100,c=a.contrast/100,s=a.saturation/100,gr=a.gray/100,se=a.sepia/100;
@@ -351,7 +361,7 @@ function wrapLayer(L){let d=!!L.dirty;Object.defineProperty(L,'dirty',{get(){ret
 function newLayer(type,name,canvas){
   return wrapLayer({id:uid++,type,name,visible:true,locked:false,opacity:1,blend:'source-over',x:canvas.width/2,y:canvas.height/2,scale:1,aspect:1,rot:0,
     canvas,mask:null,maskEdit:false,adj:defAdj(),fx:{pixelate:0,grain:0},shadow:{on:false,x:6,y:8,blur:14,color:'#000000',alpha:.5},
-    stroke:{on:false,size:4,color:'#ffffff',alpha:1},text:null,dirty:true,cache:null,clip:false,preview:null})}
+    stroke:{on:false,size:4,color:'#ffffff',alpha:1},overlay:{on:false,color:'#ff6b3d',alpha:.5},text:null,dirty:true,cache:null,clip:false,preview:null})}
 const sxOf=L=>L.scale,syOf=L=>L.scale*(L.aspect||1);
 const byId=id=>S.layers.find(l=>l.id===id)||null;
 const activeLayer=()=>byId(S.active);
@@ -386,7 +396,7 @@ function addTextLayer(p,content){
 
 function proc(L){
   const base=L.preview||L.canvas;
-  const needs=!adjDefault(L.adj)||L.fx.pixelate>0||L.fx.grain>0||L.mask||L.preview;
+  const needs=!adjDefault(L.adj)||L.fx.pixelate>0||L.fx.grain>0||L.mask||L.preview||(L.overlay&&L.overlay.on);
   if(!needs)return L.canvas;
   if(!L.dirty&&L.cache)return L.cache;
   const cw=base.width,ch=base.height;let src=base;
@@ -395,6 +405,7 @@ function proc(L){
   const o=adjDefault(L.adj)?(()=>{const q=mkCanvas(cw,ch);q.getContext('2d').drawImage(src,0,0);return q})():runAdjust(src,L.adj),c=o.getContext('2d');
   if(L.fx.grain>0){const id=c.getImageData(0,0,cw,ch),d=id.data,amt=L.fx.grain*.9;let s=1234567;
     for(let i=0;i<d.length;i+=4){if(!d[i+3])continue;s=(s*16807)%2147483647;const n=((s/2147483647)-.5)*amt;d[i]+=n;d[i+1]+=n;d[i+2]+=n}c.putImageData(id,0,0)}
+  if(L.overlay&&L.overlay.on){c.save();c.globalCompositeOperation='source-atop';c.globalAlpha=L.overlay.alpha;c.fillStyle=L.overlay.color;c.fillRect(0,0,cw,ch);c.restore()}
   if(L.mask){c.globalCompositeOperation='destination-in';c.drawImage(L.mask,0,0)}
   L.cache=o;L.dirty=false;return o}
 /* stroke renders outside the pixels, so it needs a padded canvas centred on the layer */
@@ -428,12 +439,12 @@ function composeLayers(c,w,h,list){
     if(L.shadow.on){c.shadowColor=rgba(L.shadow.color,L.shadow.alpha);c.shadowBlur=L.shadow.blur;c.shadowOffsetX=L.shadow.x;c.shadowOffsetY=L.shadow.y}
     c.translate(L.x,L.y);c.rotate(L.rot);c.scale(sxOf(L),syOf(L));c.drawImage(p,-p.width/2,-p.height/2);c.restore()}}
 let rq=0;
-function render(){rq=0;composeLayers(ctx,S.w,S.h,S.layers);drawOverlay();if(S.tab==='adjust')drawHist()}
+function render(){rq=0;composeLayers(ctx,S.w,S.h,S.compare&&S.cmpLayers?S.cmpLayers:S.layers);drawOverlay();if(S.tab==='adjust')drawHist()}
 function schedule(){if(!rq)rq=requestAnimationFrame(render)}
 
 /* ---------- history (copy-on-write snapshots) ---------- */
 function ser(L){return{id:L.id,type:L.type,name:L.name,visible:L.visible,locked:L.locked,opacity:L.opacity,blend:L.blend,x:L.x,y:L.y,scale:L.scale,aspect:L.aspect||1,rot:L.rot,
-  canvas:L.canvas,mask:L.mask,maskEdit:L.maskEdit,adj:{...L.adj},fx:{...L.fx},shadow:{...L.shadow},stroke:L.stroke?{...L.stroke}:{on:false,size:4,color:'#ffffff',alpha:1},clip:!!L.clip,text:L.text?{...L.text}:null}}
+  canvas:L.canvas,mask:L.mask,maskEdit:L.maskEdit,adj:{...L.adj},fx:{...L.fx},shadow:{...L.shadow},stroke:L.stroke?{...L.stroke}:{on:false,size:4,color:'#ffffff',alpha:1},overlay:L.overlay?{...L.overlay}:{on:false,color:'#ff6b3d',alpha:.5},clip:!!L.clip,text:L.text?{...L.text}:null}}
 function snap(label){S.layers.forEach(L=>{frozen.add(L.canvas);if(L.mask)frozen.add(L.mask)});
   return{label,w:S.w,h:S.h,active:S.active,layers:S.layers.map(ser)}}
 function commit(label){
@@ -575,6 +586,18 @@ function stamp(D,x,y){
     const tmp=D.tmp;tmp.width=d;tmp.height=d;const tg=tmp.getContext('2d');tg.clearRect(0,0,d,d);
     tg.drawImage(D.cvs,-(D.prev.x-d/2),-(D.prev.y-d/2));tg.globalCompositeOperation='destination-in';tg.drawImage(dark,0,0);
     D.c.globalAlpha=S.brush.opacity/100*.85;D.c.globalCompositeOperation='source-over';D.c.drawImage(tmp,x-d/2,y-d/2);D.prev={x,y};return}
+  if(m==='liquify'){
+    if(!D.prev){D.prev={x,y};return}
+    const mvx=x-D.prev.x,mvy=y-D.prev.y,r=D.size/2,pad=3,W=D.cvs.width,H=D.cvs.height,x0=Math.max(0,Math.floor(x-r)-pad),y0=Math.max(0,Math.floor(y-r)-pad),x1=Math.min(W,Math.ceil(x+r)+pad),y1=Math.min(H,Math.ceil(y+r)+pad),w=x1-x0,h=y1-y0;
+    D.prev={x,y};if(w<2||h<2)return;
+    const g2=D.cvs.getContext('2d'),sd=g2.getImageData(x0,y0,w,h).data,out=new Uint8ClampedArray(sd),str=S.brush.opacity/100,lm=S.liq.mode;
+    const at=(fx,fy,ch)=>{fx=clamp(fx,0,w-1.001);fy=clamp(fy,0,h-1.001);const ix=Math.floor(fx),iy=Math.floor(fy),tx=fx-ix,ty=fy-iy,i=(iy*w+ix)*4+ch;return(sd[i]*(1-tx)+sd[i+4]*tx)*(1-ty)+(sd[i+w*4]*(1-tx)+sd[i+w*4+4]*tx)*ty};
+    for(let j=0;j<h;j++)for(let i=0;i<w;i++){const px=x0+i+.5,py=y0+j+.5,dx=px-x,dy=py-y,dist=Math.hypot(dx,dy);if(dist>=r)continue;
+      const f=1-dist/r,wt=f*f*(3-2*f)*str;let sx,sy;
+      if(lm==='push'){sx=px-mvx*wt*1.6;sy=py-mvy*wt*1.6}else if(lm==='bloat'){sx=x+dx*(1-wt*.18);sy=y+dy*(1-wt*.18)}else{sx=x+dx*(1+wt*.18);sy=y+dy*(1+wt*.18)}
+      const o=(j*w+i)*4;for(let c=0;c<4;c++)out[o+c]=at(sx-x0-.5,sy-y0-.5,c)}
+    const tmp=D.tmp;tmp.width=w;tmp.height=h;tmp.getContext('2d').putImageData(new ImageData(out,w,h),0,0);
+    D.c.globalAlpha=1;D.c.globalCompositeOperation='copy';D.c.drawImage(tmp,x0,y0);D.c.globalCompositeOperation='source-over';return}
   if(m==='tone'){
     const x0=Math.round(x-d/2),y0=Math.round(y-d/2),cx0=Math.max(0,x0),cy0=Math.max(0,y0),cx1=Math.min(D.cvs.width,x0+d),cy1=Math.min(D.cvs.height,y0+d),w=cx1-cx0,h=cy1-cy0;
     if(w<1||h<1)return;const src=D.cvs.getContext('2d').getImageData(cx0,cy0,w,h).data,ta=tipAlpha(D.size,S.brush.hard),k=S.tone.strength/100*.12,md=S.tone.mode;
@@ -583,6 +606,9 @@ function stamp(D,x,y){
       let r=src[q],g=src[q+1],b=src[q+2];
       if(md==='dodge'){r+=(255-r)*wg*2;g+=(255-g)*wg*2;b+=(255-b)*wg*2}
       else if(md==='burn'){r*=1-wg*2;g*=1-wg*2;b*=1-wg*2}
+      else if(md==='blur'||md==='sharpen'){const ix=(jj,ii)=>(clamp(jj,0,h-1)*w+clamp(ii,0,w-1))*4,n1=ix(j,i-2),n2=ix(j,i+2),n3=ix(j-2,i),n4=ix(j+2,i),n5=ix(j-1,i-1),n6=ix(j+1,i+1),n7=ix(j-1,i+1),n8=ix(j+1,i-1);
+        const av=c=>(src[q+c]+src[n1+c]+src[n2+c]+src[n3+c]+src[n4+c]+src[n5+c]+src[n6+c]+src[n7+c]+src[n8+c])/9,ar=av(0),ag=av(1),ab=av(2);
+        if(md==='blur'){const f=Math.min(1,wg*9);r+=(ar-r)*f;g+=(ag-g)*f;b+=(ab-b)*f}else{const f=wg*14;r+=(r-ar)*f;g+=(g-ag)*f;b+=(b-ab)*f}}
       else{const gr=.299*r+.587*g+.114*b,f=md==='sat'?1+wg*3:Math.max(0,1-wg*3);r=gr+(r-gr)*f;g=gr+(g-gr)*f;b=gr+(b-gr)*f}
       o[q]=clamp(r,0,255);o[q+1]=clamp(g,0,255);o[q+2]=clamp(b,0,255);o[q+3]=al}
     pg.putImageData(pd,0,0);D.c.globalAlpha=1;D.c.globalCompositeOperation='source-over';D.c.drawImage(pc,cx0,cy0);return}
@@ -590,7 +616,7 @@ function stamp(D,x,y){
   D.c.globalAlpha=S.brush.opacity/100;D.c.globalCompositeOperation=D.erase?'destination-out':'source-over';D.c.drawImage(t,x-d/2,y-d/2)}
 function strokeTo(D,q){
   if(D.mode==='brush'||D.mode==='erase')D.size=Math.max(1,D.base*(.2+.8*S.pressure));
-  const l=D.last||q,dx=q.x-l.x,dy=q.y-l.y,dist=Math.hypot(dx,dy),step=Math.max(1,D.size*(D.mode==='heal'?.5:D.mode==='smudge'?.2:.12));
+  const l=D.last||q,dx=q.x-l.x,dy=q.y-l.y,dist=Math.hypot(dx,dy),step=Math.max(1,D.size*(D.mode==='heal'?.5:D.mode==='smudge'?.2:D.mode==='liquify'?.12:.12));
   const n=Math.max(1,Math.ceil(dist/step));for(let i=D.last?1:0;i<=n;i++){const t=n?i/n:1;stamp(D,l.x+dx*t,l.y+dy*t)}D.last=q}
 function paintStart(p,mode){
   const L=activeLayer();
@@ -603,7 +629,7 @@ function paintStart(p,mode){
   rasterize(L);const key=targetKey(L);ensureUnique(L,key);
   const cvs=L[key],c=paintCtx(L,cvs),q=toLocal(L,p.x,p.y);
   const D={k:'paint',mode,L,key,c,cvs,erase:mode==='erase',size:Math.max(1,S.brush.size/Math.abs(L.scale)),base:Math.max(1,S.brush.size/Math.abs(L.scale)),last:null,snap:null,tmp:null,off:null,prev:null};
-  if(mode==='clone'||mode==='heal'||mode==='tone'||mode==='smudge')D.tmp=mkCanvas(8,8);
+  if(mode==='clone'||mode==='heal'||mode==='tone'||mode==='smudge'||mode==='liquify')D.tmp=mkCanvas(8,8);
   if(mode==='clone'||mode==='heal'){D.snap=mkCanvas(cvs.width,cvs.height);D.snap.getContext('2d').drawImage(cvs,0,0)}
   if(mode==='clone'){const sl=toLocal(L,S.clone.src.x,S.clone.src.y);D.off={x:sl.x-q.x,y:sl.y-q.y}}
   S.drag=D;strokeTo(D,q);L.dirty=true;schedule()}
@@ -654,6 +680,11 @@ function shapeCanvas(kind,w,h,fill,fc,sw,sc,flipX,flipY){
   else if(kind==='ellipse')g.ellipse(w/2,h/2,w/2,h/2,0,0,Math.PI*2);
   else if(kind==='triangle'){g.moveTo(w/2,0);g.lineTo(w,h);g.lineTo(0,h);g.closePath()}
   else if(kind==='polygon'){for(let i=0;i<6;i++){const a=-Math.PI/2+i*Math.PI/3,x=w/2+Math.cos(a)*w/2,y=h/2+Math.sin(a)*h/2;i?g.lineTo(x,y):g.moveTo(x,y)}g.closePath()}
+  else if(kind==='star'||kind==='burst'){const n=kind==='star'?5:16,ri=kind==='star'?.42:.8;for(let i=0;i<n*2;i++){const a=-Math.PI/2+i*Math.PI/n,rr=i%2?ri:1,x=w/2+Math.cos(a)*w/2*rr,y=h/2+Math.sin(a)*h/2*rr;i?g.lineTo(x,y):g.moveTo(x,y)}g.closePath()}
+  else if(kind==='heart'){g.moveTo(w/2,h*.92);g.bezierCurveTo(-w*.1,h*.55,w*.05,h*.05,w/2,h*.3);g.bezierCurveTo(w*.95,h*.05,w*1.1,h*.55,w/2,h*.92);g.closePath()}
+  else if(kind==='arrow'){[[0,.35],[.6,.35],[.6,0],[1,.5],[.6,1],[.6,.65],[0,.65]].forEach(([a,b],i)=>i?g.lineTo(a*w,b*h):g.moveTo(a*w,b*h));g.closePath()}
+  else if(kind==='cross'){[[.35,0],[.65,0],[.65,.35],[1,.35],[1,.65],[.65,.65],[.65,1],[.35,1],[.35,.65],[0,.65],[0,.35],[.35,.35]].forEach(([a,b],i)=>i?g.lineTo(a*w,b*h):g.moveTo(a*w,b*h));g.closePath()}
+  else if(kind==='bubble'){g.roundRect?g.roundRect(0,0,w,h*.78,h*.12):g.rect(0,0,w,h*.78);g.moveTo(w*.2,h*.76);g.lineTo(w*.14,h);g.lineTo(w*.44,h*.76);g.closePath()}
   else{const x0=flipX?w:0,x1=flipX?0:w,y0=flipY?h:0,y1=flipY?0:h;g.moveTo(x0,y0);g.lineTo(x1,y1)}
   if(kind!=='line'&&fill)g.fill();
   if(sw>0||kind==='line'){if(kind==='line'){g.lineWidth=Math.max(sw,4);g.strokeStyle=fc}g.stroke()}
@@ -664,7 +695,7 @@ function makeShape(a,b){
   const L=newLayer('shape',k[0].toUpperCase()+k.slice(1),c);L.x=x+w/2;L.y=y+h/2;insertLayer(L);commit('Add '+k)}
 
 /* ---------- crop ---------- */
-const ASPECTS={free:0,'1:1':1,'4:5':4/5,'3:2':3/2,'16:9':16/9,'9:16':9/16};
+const ASPECTS={free:0,'1:1':1,'4:5':4/5,'3:2':3/2,'2:3':2/3,'4:3':4/3,'3:4':3/4,'16:9':16/9,'9:16':9/16,'1.91:1':1.91,'21:9':21/9};
 function cropAR(){return S.cropAspect==='orig'?S.w/S.h:(ASPECTS[S.cropAspect]||0)}
 function cropBaseSave(){S.cropBase=S.layers.map(L=>({id:L.id,x:L.x,y:L.y,rot:L.rot}));S.angle=0}
 function straighten(deg){if(!S.cropBase)return;const th=deg*Math.PI/180,cx=S.w/2,cy=S.h/2,c=Math.cos(th),sn=Math.sin(th);
@@ -817,7 +848,9 @@ ov.addEventListener('pointerdown',e=>{
   if(t==='rect'||t==='ellipse'){S.pend={kind:t,x:p.x,y:p.y,w:0,h:0};S.drag={k:'sel',p0:p,mode:selModeOf(e)};return}
   if(t==='lasso'){S.pend={kind:'lasso',pts:[p]};S.drag={k:'lasso',mode:selModeOf(e)};return}
   if(t==='brush'||t==='eraser'){paintStart(p,t==='eraser'?'erase':'brush');return}
-  if(t==='heal'||t==='tone'||t==='smudge'){paintStart(p,t);return}
+  if(t==='heal'||t==='tone'||t==='smudge'||t==='liquify'){paintStart(p,t);return}
+  if(t==='redeye'){redEye(p);return}
+  if(t==='magiceraser'){magicEraser(p);return}
   if(t==='clone'){if(e.altKey||!S.clone.src){S.clone.src={x:p.x,y:p.y};toast('Clone source set. Now paint where you want the copy.');drawOverlay();return}paintStart(p,'clone');return}
   if(t==='bucket'){bucketFill(p);return}
   if(t==='wand'){magicWand(p,selModeOf(e));return}
@@ -856,7 +889,7 @@ function endDrag(e){
     if(!geom){if(D.mode==='new')deselect();else drawOverlay();return}
     let m=maskFromGeom(geom);const f=S.selFeather;if(f>0)m=blurCopy(m,f/2);
     setSelMask(combineMask(m,D.mode),D.mode==='new'&&!f?geom:null);return}
-  if(D.k==='paint'){D.c.restore();D.L.dirty=true;commit({clone:'Clone stamp',heal:'Spot heal',tone:S.tone.mode==='dodge'?'Dodge':S.tone.mode==='burn'?'Burn':'Sponge',smudge:'Smudge',erase:'Eraser'}[D.mode]||(D.key==='mask'?'Paint mask':'Brush'));return}
+  if(D.k==='paint'){D.c.restore();D.L.dirty=true;commit({clone:'Clone stamp',heal:'Spot heal',tone:S.tone.mode==='dodge'?'Dodge':S.tone.mode==='burn'?'Burn':'Sponge',smudge:'Smudge',liquify:'Liquify '+S.liq.mode,erase:'Eraser'}[D.mode]||(D.key==='mask'?'Paint mask':'Brush'));return}
   if(D.k==='grad'){if(Math.hypot(D.b.x-D.a.x,D.b.y-D.a.y)>3)gradientFill(D.a,D.b);else drawOverlay();return}
   if(D.k==='shape'){makeShape(D.a,D.b);drawOverlay();return}
   if(D.k==='crop'){drawOverlay()}}
@@ -896,7 +929,7 @@ function renderTabs(){document.querySelectorAll('.tab').forEach(t=>t.setAttribut
 function sl(k,label,min,max,val,o={}){const f=o.f||1,u=o.u||'';return`<label class="sl"><span>${label}</span><input type="range" data-k="${k}" data-f="${f}" data-u="${u}" min="${min}" max="${max}" step="${o.step||1}" value="${val}"><output>${val}${u}</output></label>`}
 function renderPanel(){
   const L=activeLayer();let h='';
-  if(S.tab==='layers')h=layersHTML(L);else if(S.tab==='adjust')h=adjustHTML(L);else if(S.tab==='style')h=styleHTML(L);else if(S.tab==='color')h=colorHTML();else h=histHTML();
+  if(S.tab==='layers')h=layersHTML(L);else if(S.tab==='adjust')h=adjustHTML(L);else if(S.tab==='style')h=styleHTML(L);else if(S.tab==='color')h=colorHTML();else if(S.tab==='assets')h=assetsHTML();else h=histHTML();
   panel.innerHTML=h;
   if(S.tab==='adjust')drawHist();
   if(S.tab==='layers')panel.querySelectorAll('canvas.th').forEach(c=>{const l=byId(+c.dataset.id);if(!l)return;const g=c.getContext('2d');
@@ -980,7 +1013,7 @@ function styleHTML(L){
   if(!L)return'<div class="empty">Select a layer to style it.</div>';
   let h='';
   if(L.type==='text'){const t=L.text;
-    h+=`<h4>Text</h4><textarea id="txtc" data-k="text.content" data-s="1" aria-label="Text content">${esc(t.content)}</textarea>
+    h+=`<h4>Quick styles</h4><div class="chips">${Object.keys(TEXT_PRESETS).map(n=>`<button class="chip" data-tstyle="${n}">${n}</button>`).join('')}</div><h4>Text</h4><textarea id="txtc" data-k="text.content" data-s="1" aria-label="Text content">${esc(t.content)}</textarea>
     <div class="row" style="margin-top:6px"><select data-k="text.font" data-s="1" aria-label="Font">${[["'DM Sans',sans-serif",'DM Sans'],["'Playfair Display',serif",'Playfair Display'],["'Bebas Neue',sans-serif",'Bebas Neue'],["'Caveat',cursive",'Caveat'],["'Montserrat',sans-serif",'Montserrat'],["'Oswald',sans-serif",'Oswald'],["'Anton',sans-serif",'Anton'],["'Roboto Slab',serif",'Roboto Slab'],["'Pacifico',cursive",'Pacifico'],["'Lobster',cursive",'Lobster'],["'JetBrains Mono',monospace",'JetBrains Mono'],['Georgia,serif','Georgia'],['Arial,Helvetica,sans-serif','Arial'],['Impact,sans-serif','Impact']].map(([v,n])=>`<option value="${esc(v)}" ${t.font===v?'selected':''}>${n}</option>`).join('')}</select>
     <input type="color" data-k="text.color" data-s="1" value="${t.color}" aria-label="Text colour"></div>
     <div class="row"><label class="chip"><input type="checkbox" data-k="text.bold" data-s="1" ${t.bold?'checked':''}> Bold</label><label class="chip"><input type="checkbox" data-k="text.italic" data-s="1" ${t.italic?'checked':''}> Italic</label>
@@ -991,6 +1024,7 @@ function styleHTML(L){
   if(L.type!=='adjust'){
     h+=`<h4>Drop shadow</h4><div class="row"><label class="chip"><input type="checkbox" data-k="shadow.on" ${L.shadow.on?'checked':''}> Shadow</label><input type="color" data-k="shadow.color" value="${L.shadow.color}" aria-label="Shadow colour"></div>`
     +sl('shadow.x','Offset X',-100,100,L.shadow.x,{u:'px'})+sl('shadow.y','Offset Y',-100,100,L.shadow.y,{u:'px'})+sl('shadow.blur','Blur',0,100,L.shadow.blur,{u:'px'})+sl('shadow.alpha','Opacity',0,100,Math.round(L.shadow.alpha*100),{f:.01,u:'%'});
+    {const ov=L.overlay||{on:false,color:'#ff6b3d',alpha:.5};h+=`<h4>Colour overlay</h4><div class="row"><label class="chip"><input type="checkbox" data-k="overlay.on" ${ov.on?'checked':''}> Overlay</label><input type="color" data-k="overlay.color" value="${ov.color}" aria-label="Overlay colour"></div>`+sl('overlay.alpha','Opacity',0,100,Math.round(ov.alpha*100),{f:.01,u:'%'})}
     h+=`<h4>Stroke</h4><div class="row"><label class="chip"><input type="checkbox" data-k="stroke.on" ${L.stroke&&L.stroke.on?'checked':''}> Stroke</label><input type="color" data-k="stroke.color" value="${(L.stroke&&L.stroke.color)||'#ffffff'}" aria-label="Stroke colour"></div>`
     +sl('stroke.size','Size',1,80,(L.stroke&&L.stroke.size)||4,{u:'px'})+sl('stroke.alpha','Opacity',0,100,Math.round(((L.stroke&&L.stroke.alpha)||1)*100),{f:.01,u:'%'});
   }
@@ -1003,6 +1037,7 @@ function applyProp(t,L){
   const path=t.dataset.k;let v;
   if(t.type==='checkbox')v=t.checked;else if(t.type==='range'||t.type==='number')v=Number(t.value)*(Number(t.dataset.f)||1);else v=t.value;
   if(path==='adj.invert')v=v?1:0;
+  if(path.startsWith('overlay.')&&!L.overlay)L.overlay={on:false,color:'#ff6b3d',alpha:.5};
   if(path==='opacity')v=clamp(v,0,1);
   if(path==='scale')v=Math.abs(v)*(Math.sign(L.scale)||1);
   if(path==='aspect')v=Math.abs(v)*(Math.sign(L.aspect||1)||1);
@@ -1048,7 +1083,7 @@ function renderOpts(){
   if(t==='move')h=`<label><input type="checkbox" data-o="autoSelect" ${S.autoSelect?'checked':''}> Pick layer under cursor</label><label><input type="checkbox" data-o="showXf" ${S.showXf?'checked':''}> Transform controls</label><label><input type="checkbox" data-o="snapOn" ${S.snapOn?'checked':''}> Snap</label>
     <span class="grp">${[['l','Align left'],['c','Align centre'],['r','Align right'],['t','Align top'],['m','Align middle'],['b','Align bottom']].map(([k,n],i)=>`<button class="btn sm" data-oa="align" data-v="${k}" title="${n}" aria-label="${n}">${['&#8676;','&#8596;','&#8677;','&#8613;','&#8597;','&#8615;'][i]}</button>`).join('')}</span><span class="hint">Hold Ctrl to move without snapping.</span>`;
   else if(t==='transform')h=`<span class="hint">Drag handles to scale (Shift: free on corners, Alt: from centre). Round handle rotates (Shift: 15° steps).</span><button class="btn sm" data-oa="flipH">Flip H</button><button class="btn sm" data-oa="flipV">Flip V</button><button class="btn sm" data-oa="rot90">Rotate 90°</button><button class="btn sm" data-oa="fit">Fit</button><button class="btn sm" data-oa="fill2">Fill</button><button class="btn sm" data-oa="xfreset">Reset</button><button class="btn sm primary" data-oa="xfdone">Done</button>`;
-  else if(t==='crop')h=`<label>Ratio<select data-o="cropAspect">${['free','orig','1:1','4:5','3:2','16:9','9:16'].map(a=>`<option value="${a}" ${S.cropAspect===a?'selected':''}>${a==='orig'?'Original':a==='free'?'Free':a}</option>`).join('')}</select></label>
+  else if(t==='crop')h=`<label>Ratio<select data-o="cropAspect">${['free','orig','1:1','4:5','3:2','2:3','4:3','3:4','16:9','9:16','1.91:1','21:9'].map(a=>`<option value="${a}" ${S.cropAspect===a?'selected':''}>${a==='orig'?'Original':a==='free'?'Free':a}</option>`).join('')}</select></label>
     <label>Straighten<input type="range" data-o="angle" min="-45" max="45" step="0.5" value="${S.angle||0}"><span class="mono" style="min-width:46px">${S.angle||0}°</span></label><span class="mono" id="cropinfo"></span><button class="btn sm" data-oa="rotl" title="Rotate 90° counter-clockwise">Rotate ↺</button><button class="btn sm" data-oa="rotr" title="Rotate 90° clockwise">Rotate ↻</button>
     <button class="btn sm primary" data-oa="crop">Apply crop</button><button class="btn sm" data-oa="cropcancel">Cancel</button>`;
   else if(t==='rect'||t==='ellipse'||t==='lasso'||t==='wand'){
@@ -1059,11 +1094,14 @@ function renderOpts(){
   else if(t==='brush'||t==='eraser')h=opt('brush.size','Size',1,400,S.brush.size,'px')+opt('brush.hard','Hardness',0,100,S.brush.hard,'%')+opt('brush.opacity','Opacity',1,100,S.brush.opacity,'%')+opt('brush.smooth','Smoothing',0,100,S.brush.smooth,'%')+maskNote+'<span class="hint">Pen pressure sizes the stroke. Alt-click picks a colour.</span>';
   else if(t==='clone')h=opt('brush.size','Size',1,400,S.brush.size,'px')+opt('brush.hard','Hardness',0,100,S.brush.hard,'%')+opt('brush.opacity','Opacity',1,100,S.brush.opacity,'%')+`<button class="btn sm" data-oa="resetsrc">Set new source</button><span class="hint">${S.clone.src?'Source set.':'Click once to choose the source area.'} Alt-click also sets it.</span>`;
   else if(t==='heal')h=opt('brush.size','Size',1,400,S.brush.size,'px')+opt('brush.hard','Hardness',0,100,S.brush.hard,'%')+'<span class="hint">Paint over a blemish. It borrows matching texture from nearby.</span>';
-  else if(t==='tone')h=`<label>Mode<select data-o="tone.mode"><option value="dodge" ${S.tone.mode==='dodge'?'selected':''}>Dodge (lighten)</option><option value="burn" ${S.tone.mode==='burn'?'selected':''}>Burn (darken)</option><option value="sat" ${S.tone.mode==='sat'?'selected':''}>Sponge: more colour</option><option value="desat" ${S.tone.mode==='desat'?'selected':''}>Sponge: less colour</option></select></label>`+opt('brush.size','Size',1,400,S.brush.size,'px')+opt('brush.hard','Hardness',0,100,S.brush.hard,'%')+opt('tone.strength','Strength',1,100,S.tone.strength,'%');
+  else if(t==='tone')h=`<label>Mode<select data-o="tone.mode"><option value="dodge" ${S.tone.mode==='dodge'?'selected':''}>Dodge (lighten)</option><option value="burn" ${S.tone.mode==='burn'?'selected':''}>Burn (darken)</option><option value="sat" ${S.tone.mode==='sat'?'selected':''}>Sponge: more colour</option><option value="desat" ${S.tone.mode==='desat'?'selected':''}>Sponge: less colour</option><option value="blur" ${S.tone.mode==='blur'?'selected':''}>Blur brush</option><option value="sharpen" ${S.tone.mode==='sharpen'?'selected':''}>Sharpen brush</option></select></label>`+opt('brush.size','Size',1,400,S.brush.size,'px')+opt('brush.hard','Hardness',0,100,S.brush.hard,'%')+opt('tone.strength','Strength',1,100,S.tone.strength,'%');
   else if(t==='smudge')h=opt('brush.size','Size',1,400,S.brush.size,'px')+opt('brush.hard','Hardness',0,100,S.brush.hard,'%')+opt('brush.opacity','Strength',1,100,S.brush.opacity,'%')+'<span class="hint">Drag to push colour along.</span>';
+  else if(t==='liquify')h=`<label>Mode<select data-o="liq.mode"><option value="push" ${S.liq.mode==='push'?'selected':''}>Push</option><option value="bloat" ${S.liq.mode==='bloat'?'selected':''}>Bloat</option><option value="pinch" ${S.liq.mode==='pinch'?'selected':''}>Pinch</option></select></label>`+opt('brush.size','Size',10,400,S.brush.size,'px')+opt('brush.opacity','Strength',1,100,S.brush.opacity,'%')+'<span class="hint">Drag to reshape. Push moves pixels, bloat and pinch work from the centre.</span>';
+  else if(t==='redeye')h=opt('brush.size','Size',6,200,S.brush.size,'px')+'<span class="hint">Click the red pupil to neutralise it.</span>';
+  else if(t==='magiceraser')h=opt('wand.tol','Tolerance',0,128,S.wand.tol)+`<label><input type="checkbox" data-o="wand.contiguous" ${S.wand.contiguous?'checked':''}> Contiguous</label><span class="hint">Click a colour to erase it to transparency (background remover).</span>`;
   else if(t==='bucket')h=opt('bucket.tol','Tolerance',0,128,S.bucket.tol)+'<span class="hint">Fills similar colour with the foreground swatch.</span>';
   else if(t==='gradient')h=`<label>Shape<select data-o="grad.shape"><option value="linear" ${S.grad.shape==='linear'?'selected':''}>Linear</option><option value="radial" ${S.grad.shape==='radial'?'selected':''}>Radial</option></select></label><label>Fill<select data-o="grad.mode"><option value="fgbg" ${S.grad.mode==='fgbg'?'selected':''}>Foreground to background</option><option value="fgt" ${S.grad.mode==='fgt'?'selected':''}>Foreground to transparent</option></select></label><span class="hint">Drag across the layer.</span>`;
-  else if(t==='shape')h=`<label>Shape<select data-o="shape.kind">${['rect','ellipse','triangle','polygon','line'].map(k=>`<option value="${k}" ${S.shape.kind===k?'selected':''}>${k}</option>`).join('')}</select></label><label><input type="checkbox" data-o="shape.fill" ${S.shape.fill?'checked':''}> Fill</label>${opt('shape.stroke','Outline',0,40,S.shape.stroke,'px')}<span class="hint">Fill uses the front swatch, outline the back.</span>`;
+  else if(t==='shape')h=`<label>Shape<select data-o="shape.kind">${['rect','ellipse','triangle','polygon','star','heart','arrow','bubble','burst','cross','line'].map(k=>`<option value="${k}" ${S.shape.kind===k?'selected':''}>${k}</option>`).join('')}</select></label><label><input type="checkbox" data-o="shape.fill" ${S.shape.fill?'checked':''}> Fill</label>${opt('shape.stroke','Outline',0,40,S.shape.stroke,'px')}<span class="hint">Fill uses the front swatch, outline the back.</span>`;
   else if(t==='text')h='<span class="hint">Click the canvas to add text, or click existing text to edit it.</span>';
   else if(t==='eyedrop')h='<span class="hint">Click to sample the front colour. Shift-click for the back colour.</span>';
   else if(t==='hand')h='<span class="hint">Drag to pan. Hold Space with any tool to pan. Ctrl + wheel zooms.</span>';
@@ -1087,7 +1125,7 @@ function buildTools(){
   $('#fg').addEventListener('input',e=>{S.fg=e.target.value});$('#bg').addEventListener('input',e=>{S.bg=e.target.value})}
 function syncSwatches(){const f=$('#fg'),b=$('#bg');if(f)f.value=S.fg;if(b)b.value=S.bg}
 function swap(){[S.fg,S.bg]=[S.bg,S.fg];syncSwatches()}
-function statusText(p){const L=activeLayer();$('#status').innerHTML=`<span>${S.w} × ${S.h} px</span><span>${Math.round(S.zoom*100)}%</span>${p?`<span>x ${Math.round(p.x)}  y ${Math.round(p.y)}</span>`:''}<span>${L?esc(L.name)+(L.maskEdit&&L.mask?' (mask)':''):'No layer'}</span>`}
+function statusText(p){const L=activeLayer();$('#status').innerHTML=(S.compare?'<span style="color:var(--accent)">Showing original</span>':'')+`<span>${S.w} × ${S.h} px</span><span>${Math.round(S.zoom*100)}%</span>${p?`<span>x ${Math.round(p.x)}  y ${Math.round(p.y)}</span>`:''}<span>${L?esc(L.name)+(L.maskEdit&&L.mask?' (mask)':''):'No layer'}</span>`}
 
 /* ---------- modal + toast ---------- */
 let toastT=0;
@@ -1099,6 +1137,60 @@ function modal(title,body,buttons,mount){
   m.onclick=e=>{if(e.target===m){closeModal();return}const b=e.target.closest('[data-b]');if(b){const bt=buttons[+b.dataset.b];if(!bt.onClick||bt.onClick(m)!==false)closeModal()}};
   mount&&mount(m);const f=m.querySelector('input,select,button');f&&f.focus();return closeModal}
 
+
+/* ---------- retouch helpers, frames, assets ---------- */
+function redEye(p){
+  const L=activeLayer();if(!L||L.type==='adjust'||L.locked||L.maskEdit){toast('Select an unlocked pixel layer');return}
+  rasterize(L);ensureUnique(L,'canvas');const cvs=L.canvas,q=toLocal(L,p.x,p.y),r=Math.max(3,S.brush.size/2/Math.abs(L.scale)),x0=Math.max(0,Math.floor(q.x-r)),y0=Math.max(0,Math.floor(q.y-r)),x1=Math.min(cvs.width,Math.ceil(q.x+r)),y1=Math.min(cvs.height,Math.ceil(q.y+r));
+  if(x1<=x0||y1<=y0){toast('Click on the eye');return}
+  const g=cvs.getContext('2d'),id=g.getImageData(x0,y0,x1-x0,y1-y0),d=id.data;let n=0;
+  for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++){if(Math.hypot(x-q.x,y-q.y)>r)continue;const i=((y-y0)*(x1-x0)+(x-x0))*4,R=d[i],G=d[i+1],B=d[i+2];
+    if(R>60&&R>1.5*Math.max(G,B)){const t=(G+B)/2;d[i]=Math.min(R,t*.95);d[i+1]=G*.9;d[i+2]=B*.9;n++}}
+  g.putImageData(id,x0,y0);if(!n){toast('No red found there. Try a larger size.');return}L.dirty=true;commit('Red-eye fix')}
+function magicEraser(p){
+  const L=activeLayer();if(!L||L.type==='adjust'||L.locked){toast('Select an unlocked pixel layer');return}
+  const keep=S.sel;S.sel=null;magicWand(p,'new');if(!S.sel){S.sel=keep;return}
+  featherSel(1.6);selAction('clear');S.sel=null;renderOpts();drawOverlay()}
+function frameDialog(){
+  modal('Add a frame',`<div class="row"><label>Style <select id="fs"><option value="solid">Solid border</option><option value="polaroid">Polaroid</option></select></label><label>Width <input id="fw" type="number" class="num" min="1" max="500" value="40" style="width:80px"> px</label><label>Colour <input id="fc" type="color" value="#ffffff"></label></div><p class="note">The canvas grows to make room, and a Frame layer is added on top.</p>`,
+  [{label:'Cancel'},{label:'Add frame',primary:true,onClick:m=>{
+    const b=clamp(Math.round(+m.querySelector('#fw').value)||40,1,500),bot=m.querySelector('#fs').value==='polaroid'?b*3:b,col=m.querySelector('#fc').value,W=S.w+2*b,H=S.h+b+bot;
+    if(W*H>36e6){toast('That frame makes the image too large.');return false}
+    S.layers.forEach(L=>{L.x+=b;L.y+=b});const ow=S.w,oh=S.h;S.w=W;S.h=H;
+    const c=mkCanvas(W,H),g=c.getContext('2d');g.fillStyle=col;g.fillRect(0,0,W,H);g.clearRect(b,b,ow,oh);
+    const F=newLayer('paint','Frame',c);F.x=W/2;F.y=H/2;S.layers.push(F);S.active=F.id;S.sel=null;sizeBoard(true);commit('Add frame');renderOpts()}}])}
+const EMOJI_FONT="'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif";
+const EMOJI=['😀','😂','😍','😎','🥳','😭','😡','🤔','👍','👏','🙏','💪','❤️','🔥','✨','⭐','🌈','☀️','🌙','⚡','🎉','🎈','🎁','🏆','📷','🎵','🍕','🍔','🍦','☕','🌸','🌴','🐶','🐱','🦄','🚀','✈️','🏠','💡','💯','✅','❌','⚠️','📌','👑','💎','🎯','➕'];
+const SHAPE_ASSETS=[['star','Star'],['heart','Heart'],['arrow','Arrow'],['bubble','Speech bubble'],['burst','Burst'],['cross','Cross'],['triangle','Triangle'],['polygon','Hexagon'],['ellipse','Circle'],['rect','Square']];
+const BGS=[['Sunset',['#ff512f','#dd2476']],['Ocean',['#2193b0','#6dd5ed']],['Mint',['#00b09b','#96c93d']],['Midnight',['#0f2027','#2c5364']],['Peach',['#ffecd2','#fcb69f']],['Mono',['#f5f5f5','#bdbdbd']]];
+const TEXT_PRESETS={Heading:{t:{font:"'Anton',sans-serif",color:'#ffffff',bold:false,italic:false,stroke:0,spacing:2,lh:1.1,k:.14},sh:{on:true,x:4,y:6,blur:14,color:'#000000',alpha:.5}},
+  Elegant:{t:{font:"'Playfair Display',serif",color:'#fff4e0',bold:true,italic:true,stroke:0,spacing:0,lh:1.2,k:.1},sh:{on:false}},
+  Neon:{t:{font:"'Pacifico',cursive",color:'#ffffff',bold:false,italic:false,stroke:0,spacing:1,lh:1.2,k:.12},sh:{on:true,x:0,y:0,blur:26,color:'#ff2bd6',alpha:1}},
+  Retro:{t:{font:"'Lobster',cursive",color:'#ffd60a',bold:false,italic:false,stroke:6,strokeColor:'#b5179e',spacing:1,lh:1.2,k:.13},sh:{on:true,x:6,y:6,blur:0,color:'#3a0ca3',alpha:1}},
+  Meme:{t:{font:'Impact,sans-serif',color:'#ffffff',bold:false,italic:false,stroke:8,strokeColor:'#000000',spacing:0,lh:1.1,k:.13},sh:{on:false}},
+  Typewriter:{t:{font:"'JetBrains Mono',monospace",color:'#1d1b18',bold:false,italic:false,stroke:0,spacing:0,lh:1.4,k:.05},sh:{on:false}}};
+function applyTextPreset(L,name){const P=TEXT_PRESETS[name];if(!P||!L||L.type!=='text')return;
+  Object.assign(L.text,{strokeColor:'#000000'},P.t);L.text.size=Math.round(S.h*(P.t.k||.1));delete L.text.k;L.shadow={...L.shadow,...P.sh};L.dirty=true;renderText(L);
+  document.fonts&&document.fonts.load(`${L.text.bold?700:400} ${L.text.size}px ${L.text.font}`).then(()=>{renderText(L);schedule()}).catch(()=>{});commit('Text style: '+name)}
+function addTextStyle(name){addTextLayer({x:S.w*.12,y:S.h*.4},name==='Meme'?'TOP TEXT':name==='Typewriter'?'Type something…':'Your text');applyTextPreset(activeLayer(),name);S.tab='style';renderTabs();renderPanel()}
+function addAssetShape(kind){const sz=Math.round(Math.min(S.w,S.h)/3),c=shapeCanvas(kind,sz,sz,true,S.fg,S.shape.stroke,S.bg,false,false),nm=(SHAPE_ASSETS.find(a=>a[0]===kind)||[0,kind])[1];
+  const L=newLayer('shape',nm,c);L.x=S.w/2;L.y=S.h/2;insertLayer(L);commit('Add '+nm.toLowerCase())}
+function addSticker(ch){const L=newLayer('text','Sticker',mkCanvas(8,8));L.text={content:ch,font:EMOJI_FONT,size:Math.round(Math.min(S.w,S.h)/4),color:'#000000',bold:false,italic:false,align:'left',stroke:0,strokeColor:'#000000',spacing:0,lh:1.2};
+  renderText(L);L.x=S.w/2;L.y=S.h/2;insertLayer(L);commit('Add sticker')}
+function addBackground(cols){if(!S.layers.length){toast('Create or open a document first');return}const c=mkCanvas(S.w,S.h),g=c.getContext('2d'),gr=g.createLinearGradient(0,0,S.w*.6,S.h);gr.addColorStop(0,cols[0]);gr.addColorStop(1,cols[1]);g.fillStyle=gr;g.fillRect(0,0,S.w,S.h);
+  const L=newLayer('paint','Background',c);L.x=S.w/2;L.y=S.h/2;S.layers.unshift(L);S.active=L.id;commit('Add gradient background')}
+function assetsHTML(){return`<h4>Text styles</h4><div class="chips">${Object.keys(TEXT_PRESETS).map(n=>`<button class="chip" data-tstyle="${n}">${n}</button>`).join('')}</div>
+  <h4>Shapes</h4><div class="chips">${SHAPE_ASSETS.map(([k,n])=>`<button class="chip" data-asset="shape:${k}">${n}</button>`).join('')}</div>
+  <h4>Stickers</h4><div class="swgrid" style="grid-template-columns:repeat(8,1fr)">${EMOJI.map(e=>`<button data-asset="emoji:${e}" style="font-size:18px;line-height:1.5;background:var(--panel-2)" aria-label="Add ${e}">${e}</button>`).join('')}</div>
+  <h4>Backgrounds</h4><div class="chips">${BGS.map(([n,c])=>`<button class="chip" data-asset="bg:${n}" style="background:linear-gradient(135deg,${c[0]},${c[1]});color:${n==='Midnight'?'#fff':'#111'};border-color:transparent">${n}</button>`).join('')}</div><p class="note">Shapes use your front colour. Click to add, then move and resize with the Move or Free Transform tool.</p>`}
+panel.addEventListener('click',e=>{const t=e.target.closest('[data-tstyle]');if(t){const L=activeLayer();if(L&&L.type==='text'&&S.tab==='style')applyTextPreset(L,t.dataset.tstyle);else addTextStyle(t.dataset.tstyle);return}
+  const a=e.target.closest('[data-asset]');if(!a)return;const[k,v]=[a.dataset.asset.slice(0,a.dataset.asset.indexOf(':')),a.dataset.asset.slice(a.dataset.asset.indexOf(':')+1)];
+  if(k==='shape')addAssetShape(v);else if(k==='emoji')addSticker(v);else if(k==='bg')addBackground(BGS.find(b=>b[0]===v)[1])});
+/* ---------- compare with original (hold) ---------- */
+S.compare=false;S.cmpLayers=null;
+function setCompare(on){if(on===S.compare)return;
+  if(on){const h=S.hist[0];if(!h||S.hi===0||h.w!==S.w||h.h!==S.h){if(S.hi!==0)toast('Original has a different size (after crop or resize)');return}S.cmpLayers=h.layers.map(l=>wrapLayer({...ser(l),dirty:true,cache:null,preview:null}))}
+  S.compare=on;render();statusText()}
 
 /* ---------- filters (destructive, with live preview, respect the selection) ---------- */
 function convolve(src,k,div,bias){const w=src.width,h=src.height,g=src.getContext('2d'),sd=g.getImageData(0,0,w,h).data,o=mkCanvas(w,h),og=o.getContext('2d'),od=og.createImageData(w,h),d=od.data;
@@ -1121,6 +1213,30 @@ const FILTERS={
  edges:{name:'Find edges',params:[],run:c=>convolve(c,[-1,-1,-1,-1,8,-1,-1,-1,-1],1,0)},
  invert:{name:'Invert colours',params:[],run:c=>pixelMap(c,(d,i)=>{d[i]=255-d[i];d[i+1]=255-d[i+1];d[i+2]=255-d[i+2]})},
  desat:{name:'Desaturate',params:[],run:c=>pixelMap(c,(d,i)=>{const l=.299*d[i]+.587*d[i+1]+.114*d[i+2];d[i]=d[i+1]=d[i+2]=l})},
+
+ duotone:{name:'Duotone (back → front colour)',params:[['c','Contrast',0,100,40,'%']],run:(c,v)=>{const[r1,g1,b1]=hexRGB(S.bg),[r2,g2,b2]=hexRGB(S.fg),k=1+v.c/100;
+   return pixelMap(c,(d,i)=>{let l=(.299*d[i]+.587*d[i+1]+.114*d[i+2])/255;l=clamp((l-.5)*k+.5,0,1);d[i]=r1+(r2-r1)*l;d[i+1]=g1+(g2-g1)*l;d[i+2]=b1+(b2-b1)*l})}},
+ halftone:{name:'Halftone dots',params:[['s','Dot size',4,40,10,'px']],run:(c,v)=>{const sz=Math.round(v.s),cw=Math.ceil(c.width/sz),ch=Math.ceil(c.height/sz),t=mkCanvas(cw,ch);t.getContext('2d').drawImage(c,0,0,cw,ch);
+   const td=t.getContext('2d').getImageData(0,0,cw,ch).data,o=mkCanvas(c.width,c.height),g=o.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,o.width,o.height);
+   for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){const i=(y*cw+x)*4,a=td[i+3]/255;if(a<.05)continue;const l=(.299*td[i]+.587*td[i+1]+.114*td[i+2])/255,r=(1-l*.85)*sz*.72;g.fillStyle=`rgb(${td[i]},${td[i+1]},${td[i+2]})`;g.beginPath();g.arc(x*sz+sz/2,y*sz+sz/2,Math.max(.3,r),0,7);g.fill()}return o}},
+ rgbsplit:{name:'Glitch / RGB split',params:[['a','Shift',1,60,10,'px'],['n','Glitch slices',0,40,8,'']],run:(c,v)=>{const w=c.width,h=c.height,sd=c.getContext('2d').getImageData(0,0,w,h).data,o=mkCanvas(w,h),g=o.getContext('2d'),od=g.createImageData(w,h),d=od.data;
+   let sdv=4242;const rnd=()=>{sdv=(sdv*16807)%2147483647;return sdv/2147483647};const rows=new Int16Array(h);let y=0;
+   for(let k=0;k<v.n&&y<h;k++){const y0=Math.floor(rnd()*h),hh=Math.floor(4+rnd()*h*.06),off=Math.round((rnd()-.5)*v.a*6);for(let j=y0;j<Math.min(h,y0+hh);j++)rows[j]=off}
+   const a=Math.round(v.a);for(let j=0;j<h;j++)for(let i=0;i<w;i++){const o2=(j*w+i)*4,sx=clamp(i-rows[j],0,w-1),rr=((j*w)+clamp(sx+a,0,w-1))*4,bb=((j*w)+clamp(sx-a,0,w-1))*4,gg=((j*w)+sx)*4;
+     d[o2]=sd[rr];d[o2+1]=sd[gg+1];d[o2+2]=sd[bb+2];d[o2+3]=Math.max(sd[rr+3],sd[gg+3],sd[bb+3])}
+   g.putImageData(od,0,0);return o}},
+ tiltshift:{name:'Tilt-shift blur',params:[['w','Focus band',5,80,25,'%'],['b','Blur',2,40,12,'px']],run:(c,v)=>{const w=c.width,h=c.height,bl=blurCopy(c,v.b),m=mkCanvas(w,h),g=m.getContext('2d'),band=v.w/200,gr=g.createLinearGradient(0,0,0,h);
+   gr.addColorStop(0,'rgba(0,0,0,1)');gr.addColorStop(Math.max(0,.5-band),'rgba(0,0,0,0)');gr.addColorStop(Math.min(1,.5+band),'rgba(0,0,0,0)');gr.addColorStop(1,'rgba(0,0,0,1)');g.fillStyle=gr;g.fillRect(0,0,w,h);
+   const bg=bl.getContext('2d');bg.globalCompositeOperation='destination-in';bg.drawImage(m,0,0);const o=mkCanvas(w,h),og=o.getContext('2d');og.drawImage(c,0,0);og.drawImage(bl,0,0);return o}},
+ lightleak:{name:'Light leak',params:[['s','Strength',5,100,55,'%'],['a','Position',0,100,15,'%']],run:(c,v)=>{const w=c.width,h=c.height,o=mkCanvas(w,h),g=o.getContext('2d');g.drawImage(c,0,0);g.globalCompositeOperation='screen';
+   const cx=w*v.a/100,gr=g.createRadialGradient(cx,h*.2,0,cx,h*.2,Math.max(w,h)*.7);gr.addColorStop(0,`rgba(255,170,60,${v.s/100})`);gr.addColorStop(.45,`rgba(255,60,90,${v.s/200})`);gr.addColorStop(1,'rgba(255,60,90,0)');g.fillStyle=gr;g.fillRect(0,0,w,h);
+   const g2=g.createLinearGradient(0,0,w*.25,0);g2.addColorStop(0,`rgba(255,200,120,${v.s/260})`);g2.addColorStop(1,'rgba(255,200,120,0)');g.fillStyle=g2;g.fillRect(0,0,w,h);return o}},
+ dust:{name:'Film dust & scratches',params:[['a','Amount',1,100,35,'']],run:(c,v)=>{const w=c.width,h=c.height,o=mkCanvas(w,h),g=o.getContext('2d');g.drawImage(c,0,0);let sd=777;const rnd=()=>{sd=(sd*16807)%2147483647;return sd/2147483647};
+   const n=Math.round(v.a*w*h/90000);for(let i=0;i<n*14;i++){const x=rnd()*w,y=rnd()*h,r=.6+rnd()*(1+w/1400)*1.4;g.fillStyle=rnd()<.6?'rgba(255,255,255,.7)':'rgba(0,0,0,.5)';g.beginPath();g.arc(x,y,r,0,7);g.fill()}
+   g.lineWidth=Math.max(1,w/1800);for(let i=0;i<n*.8;i++){const x=rnd()*w,y=rnd()*h,l=h*(.05+rnd()*.25);g.strokeStyle=`rgba(255,255,255,${.15+rnd()*.3})`;g.beginPath();g.moveTo(x,y);g.lineTo(x+(rnd()-.5)*6,y+l);g.stroke()}return o}},
+ sketch:{name:'Pencil sketch',params:[['r','Detail',2,40,10,'px']],run:(c,v)=>{const gray=pixelMap(c,(d,i)=>{const l=.299*d[i]+.587*d[i+1]+.114*d[i+2];d[i]=d[i+1]=d[i+2]=l}),inv=pixelMap(gray,(d,i)=>{d[i]=255-d[i];d[i+1]=255-d[i+1];d[i+2]=255-d[i+2]}),bl=blurCopy(inv,v.r),
+   gd=gray.getContext('2d').getImageData(0,0,c.width,c.height),bd=bl.getContext('2d').getImageData(0,0,c.width,c.height).data,d=gd.data;
+   for(let i=0;i<d.length;i+=4){const b=bd[i],val=b>=255?255:Math.min(255,d[i]*255/(255-b));d[i]=d[i+1]=d[i+2]=val}const o=mkCanvas(c.width,c.height);o.getContext('2d').putImageData(gd,0,0);return o}},
  threshold:{name:'Threshold',params:[['t','Level',1,254,128,'']],run:(c,v)=>pixelMap(c,(d,i)=>{const l=.299*d[i]+.587*d[i+1]+.114*d[i+2],o=l>=v.t?255:0;d[i]=d[i+1]=d[i+2]=o})}
 };
 function filterResult(L,key,vals,lm){const orig=L.canvas,f=FILTERS[key].run(orig,vals);if(!lm)return f;
@@ -1162,12 +1278,12 @@ function menuSel(){const h=!!S.sel;return[
   {label:'Feather…',fn:()=>askNumber('Feather selection','Radius (px)',8,0,250,featherSel),off:!h},{label:'Grow…',fn:()=>askNumber('Grow selection','Pixels',6,1,200,growSel),off:!h},{label:'Shrink…',fn:()=>askNumber('Shrink selection','Pixels',6,1,200,shrinkSel),off:!h},'-',
   {label:'Layer pixels',fn:()=>selectLayerPixels(),off:noL()},{label:'Layer via copy',key:'Ctrl+J',fn:()=>layerViaCopy(false),off:!h},{label:'Layer via cut',key:'Ctrl+Shift+J',fn:()=>layerViaCopy(true),off:!h},{label:'Selection to layer mask',fn:()=>selAction('mask'),off:!h}]}
 function menuImg(){return[
-  {label:'Image and canvas size…',fn:sizeDialog},{label:'Trim transparent edges',fn:trimCanvas},'-',
+  {label:'Image and canvas size…',fn:sizeDialog},{label:'Add frame / border…',fn:frameDialog},{label:'Trim transparent edges',fn:trimCanvas},'-',
   {label:'Rotate 90° clockwise',fn:()=>rotate90(true)},{label:'Rotate 90° counter-clockwise',fn:()=>rotate90(false)},{label:'Rotate 180°',fn:rotate180},{label:'Flip canvas horizontally',fn:()=>flipCanvas(true)},{label:'Flip canvas vertically',fn:()=>flipCanvas(false)},'-',
   {label:'Auto tone (levels)',fn:()=>autoTone(),off:noL()},{label:'Add adjustment layer: Vivid',fn:()=>addAdjust('Vivid')},{label:'Flatten image',fn:flatten,off:S.layers.length<2}]}
 function menuFilter(){return Object.keys(FILTERS).map(k=>({label:FILTERS[k].name+(FILTERS[k].params.length?'…':''),fn:()=>filterDialog(k)}))}
 function menuView(){return[
-  {label:'Zoom in',key:'+',fn:()=>zoomCenter(1.25)},{label:'Zoom out',key:'-',fn:()=>zoomCenter(1/1.25)},{label:'Fit on screen',key:'0',fn:()=>fitZoom()},{label:'Actual size (100%)',fn:()=>$('#zVal').click()},'-',
+  {label:'Compare with original (hold \\)',fn:()=>{setCompare(true);setTimeout(()=>setCompare(false),1600)}},'-',{label:'Zoom in',key:'+',fn:()=>zoomCenter(1.25)},{label:'Zoom out',key:'-',fn:()=>zoomCenter(1/1.25)},{label:'Fit on screen',key:'0',fn:()=>fitZoom()},{label:'Actual size (100%)',fn:()=>$('#zVal').click()},'-',
   {label:'Snapping',on:S.snapOn,fn:()=>{S.snapOn=!S.snapOn;renderOpts()}},{label:'Grid',key:"Ctrl+'",on:S.grid,fn:()=>{S.grid=!S.grid;drawOverlay()}},{label:'Light / dark theme',fn:toggleTheme},{label:'Keyboard shortcuts',key:'?',fn:helpDialog}]}
 
 /* ---------- documents ---------- */
@@ -1213,7 +1329,7 @@ function sizeDialog(){
     h.addEventListener('input',()=>{if(md.value==='image')w.value=Math.max(1,Math.round(h.value*ar))});
     md.addEventListener('change',()=>{m.querySelector('#szn').textContent=md.value==='image'?'Aspect ratio stays locked while resizing.':'Canvas size changes the frame only. Layers keep their pixels.'})})}
 function newDialog(){
-  modal('New document',`<div class="chips">${[[1080,1080,'Square'],[1080,1350,'Portrait 4:5'],[1920,1080,'HD 16:9'],[1600,1000,'Landscape']].map(([w,h,n])=>`<button class="chip" data-p="${w}x${h}">${n} ${w}×${h}</button>`).join('')}</div>
+  modal('New document',`<div class="chips">${[[1080,1080,'Instagram post'],[1080,1350,'Instagram portrait'],[1080,1920,'Story / Reel / TikTok'],[1280,720,'YouTube thumbnail'],[1920,1080,'HD wallpaper'],[820,312,'Facebook cover'],[1500,500,'X / Twitter header'],[1584,396,'LinkedIn banner'],[1000,1500,'Pinterest pin'],[1240,1754,'A4 print (150 dpi)'],[600,600,'Passport photo'],[1600,1000,'Landscape']].map(([w,h,n])=>`<button class="chip" data-p="${w}x${h}">${n} ${w}×${h}</button>`).join('')}</div>
   <div class="row"><label>Width <input id="nw" type="number" class="num" min="1" max="${MAXDOC}" value="1600" style="width:90px"></label><label>Height <input id="nh" type="number" class="num" min="1" max="${MAXDOC}" value="1000" style="width:90px"></label></div>
   <div class="row"><label>Background <select id="nb"><option value="white">White</option><option value="fg">Front colour</option><option value="transparent">Transparent</option></select></label></div>`,
   [{label:'Cancel'},{label:'Create',primary:true,onClick:m=>{const w=clamp(+m.querySelector('#nw').value||1600,1,MAXDOC),h=clamp(+m.querySelector('#nh').value||1000,1,MAXDOC);
@@ -1233,7 +1349,7 @@ function exportDialog(){
   <div class="row" id="xqr"><label style="flex:1;display:flex;gap:8px;align-items:center">Quality <input id="xq" type="range" min="40" max="100" value="90"><output id="xqo">90</output></label></div>
   <div class="row"><label>Scale <select id="xs"><option value="50">50%</option><option value="100" selected>100%</option><option value="200">200%</option></select></label><label>Name <input id="xn" type="text" value="${st.name}" style="width:150px"></label></div>
   <img class="preview" id="xp" alt="Export preview" hidden><p class="note mono" id="xi">Rendering…</p><p class="note" id="xh" hidden>If saving is blocked here, press and hold or right-click the preview to save it.</p>`,
-  [{label:'Close'},{label:'Copy image',onClick:async()=>{try{const base=mkCanvas(S.w,S.h);composeLayers(base.getContext('2d'),S.w,S.h,S.layers);const b=await toBlobP(base);await navigator.clipboard.write([new ClipboardItem({'image/png':b})]);toast('Copied to clipboard')}catch{toast('Clipboard is not available here')}return false}},{label:'Save file',primary:true,onClick:async m=>{if(!st.blob)return false;const ext=st.fmt==='jpeg'?'jpg':st.fmt;const nm=(st.name||'grainroom-export').replace(/[\\/:*?"<>|]+/g,'-');await saveBlob(st.blob,nm+'.'+ext);return false}}],
+  [{label:'Close'},{label:'Copy image',onClick:async()=>{try{const base=mkCanvas(S.w,S.h);composeLayers(base.getContext('2d'),S.w,S.h,S.layers);const b=await toBlobP(base);await navigator.clipboard.write([new ClipboardItem({'image/png':b})]);toast('Copied to clipboard')}catch{toast('Clipboard is not available here')}return false}},...(navigator.share?[{label:'Share',onClick:async()=>{if(!st.blob)return false;try{const ext=st.fmt==='jpeg'?'jpg':st.fmt,f=new File([st.blob],(st.name||'grainroom-export')+'.'+ext,{type:st.blob.type});if(navigator.canShare&&!navigator.canShare({files:[f]})){toast('Sharing files is not supported here');return false}await navigator.share({files:[f],title:'Made with Grainroom'})}catch{}return false}}]:[]),{label:'Save file',primary:true,onClick:async m=>{if(!st.blob)return false;const ext=st.fmt==='jpeg'?'jpg':st.fmt;const nm=(st.name||'grainroom-export').replace(/[\\/:*?"<>|]+/g,'-');await saveBlob(st.blob,nm+'.'+ext);return false}}],
   m=>{const f=m.querySelector('#xf'),q=m.querySelector('#xq'),s=m.querySelector('#xs'),n=m.querySelector('#xn'),qr=m.querySelector('#xqr');let tick=0;
     async function build(){const my=++tick;st.fmt=f.value;st.q=+q.value;st.scale=+s.value;st.name=n.value;qr.hidden=st.fmt==='png';m.querySelector('#xqo').textContent=q.value;
       const w=Math.round(S.w*st.scale/100),h=Math.round(S.h*st.scale/100);
@@ -1283,7 +1399,7 @@ function helpDialog(){
   const rows=[['Move / Crop / Free transform','V / C / Ctrl+T'],['Rect / Ellipse / Lasso / Wand','M / O / L / W'],['Brush / Eraser / Bucket / Gradient','B / E / G / R'],['Clone / Heal / Dodge-burn / Smudge','S / J / D / K'],['Eyedropper / Text / Shape / Hand','I / T / U / H'],
    ['Brush size','[  ]'],['Swap colours','X'],['Undo / Redo','Ctrl+Z / Ctrl+Shift+Z'],['Select all / Deselect / Reselect','Ctrl+A / D / Shift+D'],['Invert selection','Ctrl+Shift+I'],['Add / subtract / intersect selection','Shift / Alt / Shift+Alt'],
    ['Cut / Copy / Paste','Ctrl+X / C / V'],['Layer via copy / cut','Ctrl+J / Ctrl+Shift+J'],['New layer','Ctrl+Shift+N'],['Fill selection front / back','Alt+Backspace / Ctrl+Backspace'],['Pick colour while painting','Alt+click'],
-   ['Pan','Space+drag'],['Zoom','Ctrl+wheel, + / -, 0'],['Move without snapping','Hold Ctrl'],['Nudge layer','Arrow keys (Shift ×10)'],['Layer opacity','1 to 9, 0 = 100%'],['Open / Save project / Export','Ctrl+O / S / E']];
+   ['Liquify / Red-eye / Magic eraser','Y / Z / N'],['Compare with original','Hold \\'],['Pan','Space+drag'],['Zoom','Ctrl+wheel, + / -, 0'],['Move without snapping','Hold Ctrl'],['Nudge layer','Arrow keys (Shift ×10)'],['Layer opacity','1 to 9, 0 = 100%'],['Open / Save project / Export','Ctrl+O / S / E']];
   modal('Keyboard shortcuts','<div class="kbd">'+rows.map(([a,b])=>`<span>${esc(a)}</span><span>${esc(b)}</span>`).join('')+'</div>',[{label:'Close',primary:true}])}
 
 /* ---------- sample scene (marked as an example) ---------- */
@@ -1307,7 +1423,8 @@ function startSample(){
 
 /* ---------- wiring ---------- */
 $('#bOpen').onclick=()=>pickFile(false);$('#bAdd').onclick=()=>pickFile(true);$('#bNew').onclick=newDialog;$('#bSize').onclick=sizeDialog;$('#bExport').onclick=exportDialog;
-$('#bSave').onclick=saveProject;$('#bHelp').onclick=helpDialog;$('#bTheme').onclick=toggleTheme;
+$('#bSave').onclick=saveProject;{const cb=$('#bCompare');cb.addEventListener('pointerdown',e=>{e.preventDefault();setCompare(true)});['pointerup','pointerleave','pointercancel'].forEach(t=>cb.addEventListener(t,()=>setCompare(false)))}
+$('#bHelp').onclick=helpDialog;$('#bTheme').onclick=toggleTheme;
 $('#mEdit').onclick=e=>showMenu(e.currentTarget,menuEdit());$('#mSel').onclick=e=>showMenu(e.currentTarget,menuSel());$('#mImg').onclick=e=>showMenu(e.currentTarget,menuImg());$('#mFilter').onclick=e=>showMenu(e.currentTarget,menuFilter());$('#mView').onclick=e=>showMenu(e.currentTarget,menuView());
 $('#bUndo').onclick=undo;$('#bRedo').onclick=redo;$('#zIn').onclick=()=>zoomCenter(1.25);$('#zOut').onclick=()=>zoomCenter(1/1.25);$('#zFit').onclick=()=>fitZoom();
 $('#zVal').onclick=()=>{const r=stage.getBoundingClientRect();zoomAt(1,r.left+r.width/2,r.top+r.height/2)};
@@ -1341,20 +1458,21 @@ document.addEventListener('keydown',e=>{
     if(e.key==='ArrowLeft')L.x-=d;if(e.key==='ArrowRight')L.x+=d;if(e.key==='ArrowUp')L.y-=d;if(e.key==='ArrowDown')L.y+=d;schedule();clearTimeout(S.nt);S.nt=setTimeout(()=>commit('Nudge'),400)}return}
   if(e.key==='[')S.brush.size=Math.max(1,S.brush.size-(S.brush.size>50?10:4));if(e.key===']')S.brush.size=Math.min(400,S.brush.size+(S.brush.size>=50?10:4));
   if(e.key==='['||e.key===']'){renderOpts();drawOverlay();return}
+  if(e.key==='\\'){if(!e.repeat)setCompare(true);return}
   if(e.key==='?'){helpDialog();return}
   if(/^[0-9]$/.test(e.key)&&!mod&&!e.altKey){const L=activeLayer();if(L){L.opacity=e.key==='0'?1:(+e.key)/10;commit('Opacity '+Math.round(L.opacity*100)+'%');renderPanel()}return}
   if(e.key==='+'||e.key==='='){zoomCenter(1.25);return}if(e.key==='-'){zoomCenter(1/1.25);return}if(e.key==='0'){fitZoom();return}
   const k=e.key.toLowerCase();
   if(k==='x'){swap();return}
   if(k==='q'){const L=activeLayer();if(L&&L.mask){L.maskEdit=!L.maskEdit;renderPanel();renderOpts()}return}
-  const map={v:'move',c:'crop',m:'rect',o:'ellipse',l:'lasso',w:'wand',b:'brush',e:'eraser',g:'bucket',r:'gradient',s:'clone',j:'heal',d:'tone',k:'smudge',i:'eyedrop',t:'text',u:'shape',h:'hand'};
+  const map={v:'move',c:'crop',m:'rect',o:'ellipse',l:'lasso',w:'wand',b:'brush',e:'eraser',g:'bucket',r:'gradient',s:'clone',j:'heal',d:'tone',k:'smudge',i:'eyedrop',t:'text',u:'shape',h:'hand',y:'liquify',z:'redeye',n:'magiceraser'};
   if(map[k]&&!mod&&!e.altKey){setTool(map[k])}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenu()});
-document.addEventListener('keyup',e=>{if(e.key===' '){S.space=false;ov.style.cursor=S.tool==='hand'?'grab':'crosshair'}});
+document.addEventListener('keyup',e=>{if(e.key==='\\')setCompare(false);if(e.key===' '){S.space=false;ov.style.cursor=S.tool==='hand'?'grab':'crosshair'}});
 
 buildTools();renderTabs();setTool('move');startSample();sizeBoard(true);
 document.fonts&&document.fonts.ready.then(()=>{S.layers.filter(l=>l.type==='text').forEach(l=>renderText(l));render()});
-window.__grainroom={S,commit,render,addTextLayer,exportDialog,setTool,setSelMask,maskFull,maskFromGeom,selAction,invertSel,growSel,shrinkSel,featherSel,selectAll,deselect,combineMask,flipLayer,flipCanvas,serializeDoc,loadDoc,FILTERS,runAdjust,autoTone,copySel,pasteInternal,layerViaCopy,magicWand,newLayer,insertLayer,composeLayers,newDoc,resetDoc,mkCanvas,proc,activeLayer,fitLayer,alignLayer,filterDialog,xfHit,startXf,xfDrag,undo,redo,snapPos,selectLayerPixels,saveProject,helpDialog};
+window.__grainroom={S,commit,render,addTextLayer,exportDialog,setTool,setSelMask,maskFull,maskFromGeom,selAction,invertSel,growSel,shrinkSel,featherSel,selectAll,deselect,combineMask,flipLayer,flipCanvas,serializeDoc,loadDoc,FILTERS,runAdjust,autoTone,copySel,pasteInternal,layerViaCopy,magicWand,newLayer,insertLayer,composeLayers,newDoc,resetDoc,mkCanvas,proc,activeLayer,fitLayer,alignLayer,filterDialog,xfHit,startXf,xfDrag,undo,redo,snapPos,selectLayerPixels,saveProject,helpDialog,frameDialog,addAssetShape,addSticker,addBackground,redEye,magicEraser,setCompare,LOOKS,applyTextPreset,addTextStyle,shapeCanvas,renderText};
 setTimeout(checkRestore,350);
 if('serviceWorker' in navigator&&location.protocol.startsWith('http'))addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
 })();
