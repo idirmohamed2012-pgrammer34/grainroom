@@ -19,13 +19,15 @@ const debounce = (f, ms) => { let t; return (...a) => { clearTimeout(t); t = set
 const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 
 async function loadImage(file) {
-  if (window.createImageBitmap) {
+  if (window.createImageBitmap && !(file.type === 'image/svg+xml' || /\.svg$/i.test(file.name))) {
     try { const b = await createImageBitmap(file, { imageOrientation: 'from-image' }); return { src: b, w: b.width, h: b.height }; } catch (e) { /* fallback */ }
   }
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('Cannot read this image')); i.src = url; });
-    return { src: img, w: img.naturalWidth, h: img.naturalHeight };
+    const nw = img.naturalWidth || 1024, nh = img.naturalHeight || Math.round(nw * 0.75);
+    if (!img.naturalWidth) { img.width = nw; img.height = nh; }
+    return { src: img, w: nw, h: nh };
   } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
 }
 function makeCanvas(w, h) { const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h)); return c; }
@@ -149,8 +151,9 @@ function stripJpegMeta(u8) { // drops EXIF/XMP (APP1), APP13 (IPTC) and comments
 /* ---------- generic UI pieces ---------- */
 function dropzone(root, { multiple = true, accept = 'image/*', label = 'Drop images here or click to choose', onFiles }) {
   const input = el('input', { type: 'file', accept, hidden: '' }); if (multiple) input.multiple = true;
-  const dz = el('div', { class: 'drop', tabindex: '0', role: 'button', 'aria-label': 'Choose files' }, el('strong', {}, label), el('span', {}, 'JPG, PNG, WebP, GIF, BMP, AVIF · processed on your device'));
-  const go = fl => { const f = [...fl].filter(x => x.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|bmp|avif|heic)$/i.test(x.name)); if (f.length) onFiles(multiple ? f : f.slice(0, 1)); };
+  const pdfMode = accept.includes('pdf');
+  const dz = el('div', { class: 'drop', tabindex: '0', role: 'button', 'aria-label': 'Choose files' }, el('strong', {}, label), el('span', {}, pdfMode ? 'PDF files · processed on your device' : 'JPG, PNG, WebP, GIF, BMP, AVIF, SVG · processed on your device'));
+  const go = fl => { const f = [...fl].filter(x => pdfMode ? (x.type === 'application/pdf' || /\.pdf$/i.test(x.name)) : (x.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|bmp|avif|svg)$/i.test(x.name))); if (f.length) onFiles(multiple ? f : f.slice(0, 1)); };
   dz.onclick = () => input.click();
   dz.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); } };
   input.onchange = () => { go(input.files); input.value = ''; };
@@ -530,7 +533,231 @@ TOOLS['color-picker'] = root => {
   }
 };
 
-window.GrainroomTools = { crc32, makeZip, buildPdf, readExif, stripJpegMeta, TOOLS };
+
+/* ---------- file-action framework (many files in, button, files out) ---------- */
+function fileTool(root, cfg) {
+  const files = [], ui = optionsUI(cfg.options || [], () => { if (cfg.onOptions) cfg.onOptions(ui.get(), files, info); });
+  const list = el('div', { class: 'list' }), stat = el('span', { class: 'stat' }), info = el('div', { class: 'info', style: 'display:none' });
+  const go = el('button', { class: 'btn', type: 'button', disabled: '' }, cfg.button || 'Download');
+  const clear = el('button', { class: 'btn outline', type: 'button', disabled: '' }, 'Clear');
+  const multi = cfg.multiple !== false;
+  dropzone(root, { multiple: multi, accept: cfg.accept || 'image/*', label: cfg.dropLabel, onFiles: async fs => { if (!multi) files.length = 0; fs.forEach(f => files.push(f)); await draw(); } });
+  if ((cfg.options || []).length) root.append(ui.box);
+  root.append(info, el('div', { class: 'bar' }, go, clear, el('span', { class: 'grow' }), stat), list); privacyNote(root);
+  async function draw() {
+    list.replaceChildren(...files.map((f, i) => {
+      const mv = d => () => { const j = i + d; if (j < 0 || j >= files.length) return; [files[i], files[j]] = [files[j], files[i]]; draw(); };
+      const th = cfg.accept === 'application/pdf' ? el('div', { class: 'meta', style: 'width:56px;height:56px;display:grid;place-items:center;background:#000;border-radius:6px;font-size:1.4rem' }, '📄') : el('img', { alt: '', src: URL.createObjectURL(f) });
+      return el('div', { class: 'row' }, th, el('div', {}, el('div', { class: 'nm' }, (multi ? (i + 1) + '. ' : '') + f.name), el('div', { class: 'meta' }, fmtBytes(f.size))),
+        el('div', { class: 'acts' }, multi && cfg.reorder ? [el('button', { class: 'btn sm outline', type: 'button', title: 'Move up', onclick: mv(-1) }, '↑'), ' ', el('button', { class: 'btn sm outline', type: 'button', title: 'Move down', onclick: mv(1) }, '↓'), ' '] : null,
+          el('button', { class: 'btn sm outline', type: 'button', title: 'Remove', onclick: () => { files.splice(i, 1); draw(); } }, '✕')));
+    }));
+    go.disabled = clear.disabled = !files.length; stat.textContent = files.length ? files.length + ' file' + (files.length > 1 ? 's' : '') : '';
+    if (cfg.onOptions) await cfg.onOptions(ui.get(), files, info);
+  }
+  clear.onclick = () => { files.length = 0; draw(); };
+  go.onclick = async () => {
+    go.disabled = true; stat.textContent = 'Working…';
+    try {
+      const outs = await cfg.run(files.slice(), ui.get(), t => { stat.textContent = t; });
+      if (outs.length === 1) download(outs[0].blob, outs[0].name); else download(await makeZip(outs), 'grainroom-' + (cfg.zipName || 'files') + '.zip');
+      stat.textContent = '✓ ' + outs.length + ' file' + (outs.length > 1 ? 's' : '') + ' ready';
+    } catch (e) { stat.textContent = '⚠ ' + (e.message || e); }
+    go.disabled = !files.length;
+  };
+  return { files, ui, draw };
+}
+function loadPdfLib() {
+  if (window.PDFLib) return Promise.resolve(window.PDFLib);
+  return new Promise((res, rej) => { const s = el('script', { src: '/assets/vendor/pdf-lib.min.js' }); s.onload = () => res(window.PDFLib); s.onerror = () => rej(new Error('Could not load the PDF engine. Check your connection and retry.')); document.head.append(s); });
+}
+function parseRanges(str, n) { // "1-3, 5, 7-" -> [[0,1,2],[4],[6..n-1]]
+  const out = [];
+  for (const part of String(str).split(',').map(x => x.trim()).filter(Boolean)) {
+    const m = part.match(/^(\d*)\s*-\s*(\d*)$/) || part.match(/^(\d+)$/);
+    if (!m) throw new Error('Cannot read "' + part + '". Use numbers like 1-3, 5, 8-');
+    let a, b;
+    if (m.length === 2) a = b = +m[1]; else { a = m[1] === '' ? 1 : +m[1]; b = m[2] === '' ? n : +m[2]; }
+    if (a < 1 || b > n || a > b) throw new Error('Pages must be between 1 and ' + n + ' (got "' + part + '")');
+    const pg = []; for (let i = a; i <= b; i++) pg.push(i - 1); out.push(pg);
+  }
+  if (!out.length) throw new Error('Enter at least one page or range');
+  return out;
+}
+const pdfName = f => baseName(f.name);
+
+/* ---------- more image tools ---------- */
+const FMTOPT = { id: 'fmt', label: 'Format', type: 'select', value: 'keep', choices: [['keep', 'Same as original'], ['image/jpeg', 'JPG'], ['image/png', 'PNG'], ['image/webp', 'WebP']] };
+const outType = (file, o) => o.fmt === 'keep' ? (['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ? file.type : 'image/png') : o.fmt;
+
+TOOLS.rotate = root => batchTool(root, {
+  zipName: 'rotated',
+  options: [
+    { id: 'op', label: 'Action', type: 'select', value: 'cw', choices: [['cw', 'Rotate 90° clockwise'], ['ccw', 'Rotate 90° counter-clockwise'], ['180', 'Rotate 180°'], ['fh', 'Flip horizontally (mirror)'], ['fv', 'Flip vertically']] },
+    FMTOPT, { ...QOPT, value: 92, when: o => o.fmt !== 'image/png' }
+  ],
+  async process(file, o) {
+    const im = await loadImage(file), type = outType(file, o), swap = o.op === 'cw' || o.op === 'ccw';
+    const c = makeCanvas(swap ? im.h : im.w, swap ? im.w : im.h), x = c.getContext('2d');
+    if (type === 'image/jpeg') { x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); }
+    x.translate(c.width / 2, c.height / 2);
+    if (o.op === 'cw') x.rotate(Math.PI / 2); else if (o.op === 'ccw') x.rotate(-Math.PI / 2); else if (o.op === '180') x.rotate(Math.PI);
+    else if (o.op === 'fh') x.scale(-1, 1); else x.scale(1, -1);
+    x.drawImage(im.src, -im.w / 2, -im.h / 2);
+    return { blob: await toBlob(c, type, o.q / 100), name: baseName(file.name) + '-' + o.op + '.' + EXT[type] };
+  }
+});
+
+const CROPS = [['1080x1080', 'Instagram post (1080×1080)'], ['1080x1350', 'Instagram portrait (1080×1350)'], ['1080x1920', 'Story / Reels / TikTok (1080×1920)'], ['1280x720', 'YouTube thumbnail (1280×720)'], ['1200x630', 'Link preview / Facebook post (1200×630)'], ['820x312', 'Facebook cover (820×312)'], ['1500x500', 'X (Twitter) header (1500×500)'], ['1584x396', 'LinkedIn banner (1584×396)'], ['600x600', 'Passport / ID square (600×600)'], ['custom', 'Custom size']];
+TOOLS['crop-image'] = root => batchTool(root, {
+  zipName: 'cropped',
+  options: [
+    { id: 'preset', label: 'Crop to', type: 'select', value: '1080x1080', choices: CROPS },
+    { id: 'cw', label: 'Width (px)', type: 'number', min: 1, max: 10000, value: 1000, when: o => o.preset === 'custom' },
+    { id: 'ch', label: 'Height (px)', type: 'number', min: 1, max: 10000, value: 1000, when: o => o.preset === 'custom' },
+    { id: 'fx', label: 'Horizontal focus', type: 'range', min: 0, max: 100, value: 50, suffix: '%' },
+    { id: 'fy', label: 'Vertical focus', type: 'range', min: 0, max: 100, value: 50, suffix: '%' },
+    { ...FMTOPT, value: 'image/jpeg' }, { ...QOPT, value: 92, when: o => o.fmt !== 'image/png' }
+  ],
+  async process(file, o) {
+    const im = await loadImage(file); let tw, th;
+    if (o.preset === 'custom') { tw = o.cw; th = o.ch; } else [tw, th] = o.preset.split('x').map(Number);
+    const type = outType(file, o), s = Math.max(tw / im.w, th / im.h), dw = im.w * s, dh = im.h * s;
+    const c = makeCanvas(tw, th), x = c.getContext('2d'); x.imageSmoothingQuality = 'high';
+    if (type === 'image/jpeg') { x.fillStyle = '#fff'; x.fillRect(0, 0, tw, th); }
+    x.drawImage(im.src, -(dw - tw) * o.fx / 100, -(dh - th) * o.fy / 100, dw, dh);
+    return { blob: await toBlob(c, type, o.q / 100), name: baseName(file.name) + '-' + tw + 'x' + th + '.' + EXT[type], note: tw + '×' + th + ' px' };
+  }
+});
+
+TOOLS['photo-filters'] = root => batchTool(root, {
+  zipName: 'filtered',
+  options: [
+    { id: 'look', label: 'Look', type: 'select', value: 'none', choices: [['none', 'None (use sliders)'], ['bw', 'Black & white'], ['sepia', 'Sepia'], ['vintage', 'Vintage'], ['vivid', 'Vivid'], ['fade', 'Faded film'], ['cool', 'Cool'], ['warm', 'Warm']] },
+    { id: 'br', label: 'Brightness', type: 'range', min: 50, max: 150, value: 100, suffix: '%' },
+    { id: 'co', label: 'Contrast', type: 'range', min: 50, max: 150, value: 100, suffix: '%' },
+    { id: 'sa', label: 'Saturation', type: 'range', min: 0, max: 200, value: 100, suffix: '%' },
+    { id: 'bl', label: 'Blur', type: 'range', min: 0, max: 10, value: 0, suffix: 'px' },
+    FMTOPT, { ...QOPT, value: 92, when: o => o.fmt !== 'image/png' }
+  ],
+  async process(file, o) {
+    const im = await loadImage(file), type = outType(file, o);
+    const c = makeCanvas(im.w, im.h), x = c.getContext('2d');
+    if (!('filter' in x)) throw new Error('This browser does not support canvas filters. Try Chrome, Edge or Firefox.');
+    const L = { none: '', bw: 'grayscale(1) contrast(1.1)', sepia: 'sepia(.9)', vintage: 'sepia(.45) contrast(1.1) saturate(.85) brightness(1.05)', vivid: 'saturate(1.5) contrast(1.12)', fade: 'contrast(.88) brightness(1.08) saturate(.8)', cool: 'saturate(1.1) hue-rotate(-12deg) brightness(1.02)', warm: 'sepia(.25) saturate(1.2) hue-rotate(-8deg)' }[o.look];
+    x.filter = (L + ' brightness(' + o.br + '%) contrast(' + o.co + '%) saturate(' + o.sa + '%)' + (o.bl ? ' blur(' + o.bl + 'px)' : '')).trim();
+    if (type === 'image/jpeg') { x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); }
+    x.drawImage(im.src, 0, 0);
+    return { blob: await toBlob(c, type, o.q / 100), name: baseName(file.name) + '-filtered.' + EXT[type] };
+  }
+});
+
+function converter2(to, svg) {
+  return root => batchTool(root, {
+    zipName: to + '-converted',
+    options: [{ ...QOPT, value: 92, when: () => to === 'jpg' }, { ...BGOPT, when: () => to === 'jpg' }, ...(svg ? [{ id: 'sw', label: 'Output width (px)', type: 'number', min: 16, max: 8000, value: 1024 }] : [])],
+    async process(file, o) {
+      const type = to === 'jpg' ? 'image/jpeg' : 'image/png', im = await loadImage(file);
+      const w = svg ? o.sw : im.w, h = svg ? Math.round(o.sw * im.h / im.w) : im.h;
+      const { blob } = await renderBitmap(im, { w, h, type, q: o.q / 100, bg: o.bg });
+      return { blob, name: baseName(file.name) + '.' + to };
+    }
+  });
+}
+TOOLS['svg-to-png'] = converter2('png', true);
+TOOLS['avif-to-jpg'] = converter2('jpg'); TOOLS['avif-to-png'] = converter2('png');
+TOOLS['gif-to-png'] = converter2('png'); TOOLS['gif-to-jpg'] = converter2('jpg');
+TOOLS['bmp-to-jpg'] = converter2('jpg'); TOOLS['bmp-to-png'] = converter2('png');
+
+function icoFrom(pngs) { // pngs: [{size, bytes}]
+  const n = pngs.length, head = new DataView(new ArrayBuffer(6 + n * 16)); head.setUint16(2, 1, true); head.setUint16(4, n, true);
+  let off = 6 + n * 16;
+  pngs.forEach((p, i) => { const o = 6 + i * 16; head.setUint8(o, p.size >= 256 ? 0 : p.size); head.setUint8(o + 1, p.size >= 256 ? 0 : p.size); head.setUint16(o + 4, 1, true); head.setUint16(o + 6, 32, true); head.setUint32(o + 8, p.bytes.length, true); head.setUint32(o + 12, off, true); off += p.bytes.length; });
+  return new Blob([head.buffer, ...pngs.map(p => p.bytes)], { type: 'image/x-icon' });
+}
+TOOLS.favicon = root => fileTool(root, {
+  multiple: false, dropLabel: 'Drop a logo or image here (square works best)', button: '⬇ Download favicon pack (ZIP)', zipName: 'favicon',
+  options: [{ id: 'bg', label: 'Background (leave transparent for PNG)', type: 'select', value: 'none', choices: [['none', 'Transparent'], ['white', 'White'], ['black', 'Black']] }, { id: 'pad', label: 'Padding', type: 'range', min: 0, max: 30, value: 0, suffix: '%' }],
+  async run(files, o) {
+    const im = await loadImage(files[0]), sizes = [16, 32, 48, 180, 192, 512], outs = [], bytes = {};
+    for (const sz of sizes) {
+      const c = makeCanvas(sz, sz), x = c.getContext('2d'); x.imageSmoothingQuality = 'high';
+      if (o.bg !== 'none') { x.fillStyle = o.bg; x.fillRect(0, 0, sz, sz); }
+      const p = sz * o.pad / 100, s = Math.min((sz - 2 * p) / im.w, (sz - 2 * p) / im.h), w = im.w * s, h = im.h * s;
+      x.drawImage(im.src, (sz - w) / 2, (sz - h) / 2, w, h);
+      const b = await toBlob(c, 'image/png'); bytes[sz] = new Uint8Array(await b.arrayBuffer());
+      const nm = sz === 180 ? 'apple-touch-icon.png' : sz >= 192 ? 'android-chrome-' + sz + '.png' : 'favicon-' + sz + '.png'; outs.push({ name: nm, blob: b });
+    }
+    outs.push({ name: 'favicon.ico', blob: icoFrom([16, 32, 48].map(s => ({ size: s, bytes: bytes[s] }))) });
+    outs.push({ name: 'README-add-to-head.txt', blob: new Blob(['<link rel="icon" href="/favicon.ico" sizes="48x48">\n<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">\n<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">\n<link rel="apple-touch-icon" href="/apple-touch-icon.png">\n'], { type: 'text/plain' }) });
+    return outs;
+  }
+});
+
+TOOLS['image-to-base64'] = root => {
+  const out = el('textarea', { readonly: '', rows: '8', style: 'width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:10px;font:12px monospace;margin-top:10px' });
+  const stat = el('span', { class: 'stat' }), kind = el('select', { style: 'background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px' }, [['uri', 'Data URI'], ['img', '<img> tag'], ['css', 'CSS background'], ['raw', 'Base64 only']].map(([v, l]) => el('option', { value: v }, l)));
+  const copy = el('button', { class: 'btn', type: 'button', disabled: '' }, 'Copy');
+  let uri = '';
+  const show = () => { if (!uri) return; out.value = { uri, img: '<img src="' + uri + '" alt="">', css: 'background-image: url("' + uri + '");', raw: uri.split(',')[1] }[kind.value]; };
+  dropzone(root, { multiple: false, label: 'Drop an image here or click to choose', onFiles: fs => { const r = new FileReader(); r.onload = () => { uri = r.result; show(); copy.disabled = false; stat.textContent = fmtBytes(fs[0].size) + ' → ' + fmtBytes(uri.length) + ' of text' + (uri.length > 1048576 ? ' (large: better kept as a file)' : ''); }; r.readAsDataURL(fs[0]); } });
+  kind.onchange = show;
+  copy.onclick = () => { out.select(); (navigator.clipboard ? navigator.clipboard.writeText(out.value) : Promise.reject()).then(() => { copy.textContent = 'Copied!'; setTimeout(() => copy.textContent = 'Copy', 1000); }, () => document.execCommand('copy')); };
+  root.append(el('div', { class: 'bar' }, kind, copy, el('span', { class: 'grow' }), stat), out); privacyNote(root);
+};
+
+/* ---------- PDF tools ---------- */
+TOOLS['merge-pdf'] = root => fileTool(root, {
+  accept: 'application/pdf', reorder: true, dropLabel: 'Drop PDF files here or click to choose', button: '⬇ Merge PDFs',
+  async run(files, o, say) {
+    if (files.length < 2) throw new Error('Add at least two PDF files');
+    const { PDFDocument } = await loadPdfLib(), out = await PDFDocument.create();
+    for (let i = 0; i < files.length; i++) {
+      say('Merging ' + (i + 1) + '/' + files.length + '…');
+      const src = await PDFDocument.load(await files[i].arrayBuffer(), { ignoreEncryption: true });
+      (await out.copyPages(src, src.getPageIndices())).forEach(p => out.addPage(p));
+    }
+    return [{ name: 'grainroom-merged.pdf', blob: new Blob([await out.save()], { type: 'application/pdf' }) }];
+  }
+});
+async function pdfInfo(files, info) {
+  info.style.display = files.length ? '' : 'none'; if (!files.length) return;
+  try { const { PDFDocument } = await loadPdfLib(); const d = await PDFDocument.load(await files[0].arrayBuffer(), { ignoreEncryption: true }); info.replaceChildren(el('b', {}, d.getPageCount() + ' pages'), ' in ' + files[0].name); }
+  catch (e) { info.textContent = '⚠ Cannot read this PDF (is it password-protected?)'; }
+}
+TOOLS['split-pdf'] = root => fileTool(root, {
+  accept: 'application/pdf', multiple: false, dropLabel: 'Drop a PDF here or click to choose', button: '⬇ Split / extract', zipName: 'split',
+  options: [
+    { id: 'ranges', label: 'Pages (e.g. 1-3, 5, 8-)', type: 'text', value: '1' },
+    { id: 'mode', label: 'Output', type: 'select', value: 'one', choices: [['one', 'One PDF with these pages'], ['each', 'A separate PDF for each range'], ['all', 'Every page as its own PDF']] }
+  ],
+  onOptions: (o, files, info) => pdfInfo(files, info),
+  async run(files, o) {
+    const { PDFDocument } = await loadPdfLib(), src = await PDFDocument.load(await files[0].arrayBuffer(), { ignoreEncryption: true }), n = src.getPageCount();
+    const mk = async idx => { const d = await PDFDocument.create(); (await d.copyPages(src, idx)).forEach(p => d.addPage(p)); return new Blob([await d.save()], { type: 'application/pdf' }); };
+    const b = pdfName(files[0]);
+    if (o.mode === 'all') return Promise.all(src.getPageIndices().map(async i => ({ name: b + '-page-' + (i + 1) + '.pdf', blob: await mk([i]) })));
+    const r = parseRanges(o.ranges, n);
+    if (o.mode === 'one') return [{ name: b + '-extract.pdf', blob: await mk(r.flat()) }];
+    return Promise.all(r.map(async (pg, i) => ({ name: b + '-part-' + (i + 1) + '.pdf', blob: await mk(pg) })));
+  }
+});
+TOOLS['rotate-pdf'] = root => fileTool(root, {
+  accept: 'application/pdf', multiple: false, dropLabel: 'Drop a PDF here or click to choose', button: '⬇ Rotate PDF',
+  options: [
+    { id: 'deg', label: 'Rotate', type: 'select', value: '90', choices: [['90', '90° clockwise'], ['180', '180°'], ['270', '90° counter-clockwise']] },
+    { id: 'pages', label: 'Pages (blank = all)', type: 'text', value: '', placeholder: 'e.g. 2-4, 7' }
+  ],
+  onOptions: (o, files, info) => pdfInfo(files, info),
+  async run(files, o) {
+    const { PDFDocument, degrees } = await loadPdfLib(), d = await PDFDocument.load(await files[0].arrayBuffer(), { ignoreEncryption: true }), n = d.getPageCount();
+    const idx = o.pages.trim() ? parseRanges(o.pages, n).flat() : d.getPageIndices();
+    idx.forEach(i => { const p = d.getPage(i); p.setRotation(degrees((p.getRotation().angle + +o.deg) % 360)); });
+    return [{ name: pdfName(files[0]) + '-rotated.pdf', blob: new Blob([await d.save()], { type: 'application/pdf' }) }];
+  }
+});
+
+window.GrainroomTools = { crc32, makeZip, buildPdf, readExif, stripJpegMeta, parseRanges, icoFrom, TOOLS };
 function boot() { const r = $('#tool'); if (!r) return; const f = TOOLS[r.dataset.tool]; if (f) f(r); }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

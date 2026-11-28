@@ -65,3 +65,9 @@ Vercel Web Analytics is already included in all pages (`/_vercel/insights/script
 ## License
 
 MIT — free for personal and commercial use.
+
+## Tools (`/tools`)
+
+Free, client-side tools (nothing is uploaded): image compressor, PNG/JPG/WebP/AVIF/GIF/BMP/SVG converters, resize, rotate/flip, social-media crop, photo filters, watermark, EXIF remover, collage, meme generator, colour picker, favicon generator, image to Base64, image to PDF, and PDF merge/split/rotate (uses vendored [pdf-lib](https://github.com/Hopding/pdf-lib), MIT).
+
+Pages are generated: edit `scripts/build_pages.py` (metadata, FAQs) or `assets/tools.js` (logic), then run `python3 scripts/build_pages.py`.
