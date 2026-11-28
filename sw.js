@@ -1,6 +1,6 @@
 /* Grainroom service worker: makes the editor work offline once it has loaded once. */
-const VERSION = 'grainroom-v2';
-const PRECACHE = ['/', '/editor', '/fr', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/og.png'];
+const VERSION = 'grainroom-v3';
+const PRECACHE = ['/', '/editor', '/fr', '/tools', '/assets/site.css', '/assets/tools.js', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/og.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => Promise.allSettled(PRECACHE.map(u => c.add(u)))).then(() => self.skipWaiting()));
