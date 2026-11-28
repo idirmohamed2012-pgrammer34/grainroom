@@ -29,15 +29,23 @@ No signup. No watermarks. 100% client-side. Installable and works offline.
 - Live histogram and Auto tone
 - Filters with live preview: Gaussian / motion blur, sharpen, noise, pixelate, posterize, emboss, find edges, threshold
 
+**Creative and film effects**
+- 20 film looks (Kodak, Fuji, Polaroid, Cinematic, Lomo, Retro 70s…) and one-click adjustment layers
+- Filters: duotone, halftone dots, glitch / RGB split, tilt-shift, light leak, film dust & scratches, pencil sketch
+- Frames and borders (solid, Polaroid), colour overlay, compare with the original (hold `\`)
+- Assets panel: text styles (Heading, Neon, Retro, Meme…), shapes (star, heart, arrow, speech bubble…), emoji stickers, gradient backgrounds
+- Document presets for Instagram, Stories/Reels, YouTube, Facebook, X, LinkedIn, Pinterest, A4 and passport photos
+
 **Painting and retouching**
 - Brush (pen pressure, smoothing), eraser, bucket, linear / radial gradient
-- Clone stamp, spot heal, dodge / burn / sponge, smudge, eyedropper
+- Clone stamp, spot heal, dodge / burn / sponge, blur and sharpen brushes, smudge, eyedropper
+- Liquify (push, bloat, pinch), red-eye fix, magic eraser (colour background remover)
 - Colour panel with HSL mixer, swatches and recent colours
 
 **Workflow**
 - 60-step undo history, cut / copy / paste, drag & drop (multiple files)
 - Save and open `.grainroom` project files, automatic session recovery (stored only on your device)
-- Export PNG / JPEG / WebP with quality and scale, copy to clipboard
+- Export PNG / JPEG / WebP with quality and scale, copy to clipboard, share (mobile)
 - Touch support with pinch zoom, light / dark theme, keyboard shortcuts (press `?`)
 - English + French landing pages, installable PWA with offline support
 
