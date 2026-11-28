@@ -1,5 +1,5 @@
 /* Grainroom service worker: makes the editor work offline once it has loaded once. */
-const VERSION = 'grainroom-v4';
+const VERSION = 'grainroom-v5';
 const PRECACHE = ['/', '/editor', '/fr', '/tools', '/assets/site.css', '/assets/tools.js', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/og.png'];
 
 self.addEventListener('install', e => {

@@ -217,12 +217,13 @@ def footer():
         items = ''.join(f'<li><a href="/tools/{t["slug"]}">{E(t["name"])}</a></li>' for t in TOOLS if t['cat'] == c)
         cols += f'<div><h4>{c}</h4><ul>{items}</ul></div>'
     return f'''<footer class="site"><div class="wrap"><div class="cols">
-<div><h4>Grainroom App</h4><ul><li><a href="/editor">Free online photo editor</a></li><li><a href="/tools">All tools</a></li><li><a href="/about">About</a></li><li><a href="/privacy">Privacy</a></li><li><a href="/fr">Français</a></li><li><a href="{ISSUES}" rel="noopener">Feedback</a></li></ul></div>
+<div><h4>Grainroom App</h4><ul><li><a href="/editor">Free online photo editor</a></li><li><a href="/tools">All tools</a></li><li><a href="/about">About</a></li><li><a href="/privacy">Privacy</a></li><li><a href="#" data-gr-consent>Cookie settings</a></li><li><a href="/fr">Français</a></li><li><a href="{ISSUES}" rel="noopener">Feedback</a></li></ul></div>
 {cols}
 </div>
 <p style="margin-top:22px">Grainroom App is a web app that runs in your browser. It is separate from the Grainroom Photo Studio mobile app. © {datetime.date.today().year} Grainroom.</p>
 </div></footer>
 <script defer src="/_vercel/insights/script.js"></script>
+<script defer src="/assets/analytics.js"></script>
 <script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{{}}))</script>
 </body></html>
 '''
@@ -311,6 +312,7 @@ def privacy():
 <p>To make the editor convenient it saves some things in your browser: an autosave of your current project (IndexedDB), small preferences (local storage) and a cache of the site files so it works offline (service worker). This data never leaves your device. You can clear it from your browser settings at any time.</p></section>
 <section class="block"><h2>Analytics and third parties</h2>
 <ul><li>We use Vercel Web Analytics to count page views. It is designed to be privacy-friendly and does not use cookies.</li>
+<li>When enabled, we use Google Tag Manager and Google Analytics to understand which pages and tools are used. It is loaded <strong>only if you click Accept</strong> on the cookie banner, sets cookies (such as _ga) and sends anonymised usage data to Google. You can change your choice any time with “Cookie settings” in the footer. Your photos and files are never part of this data.</li>
 <li>Fonts are loaded from Google Fonts, which means your browser contacts Google to download them.</li>
 <li>The site is hosted on Vercel, which processes standard server logs such as IP address to deliver pages.</li></ul></section>
 <section class="block"><h2>Contact</h2><p>Questions? Open an issue on <a href="{ISSUES}" rel="noopener">GitHub</a>.</p></section>
