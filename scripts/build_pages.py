@@ -176,6 +176,14 @@ BY = {t['slug']: t for t in TOOLS}
 CATS = ['Optimise', 'Edit', 'Convert', 'PDF', 'Create', 'Privacy', 'Design']
 CAT_DESC = {'Edit': 'Rotate, crop and filter photos', 'PDF': 'Merge, split and rotate PDF files', 'Optimise': 'Make images lighter and the right size', 'Convert': 'Switch between image formats and PDF', 'Create': 'Make collages, memes and watermarks', 'Privacy': 'Protect what you share', 'Design': 'Colour tools'}
 
+GTM = '''<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-TQH8Z378');</script>
+<!-- End Google Tag Manager -->
+'''
+GTM_NS = '''<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TQH8Z378" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+'''
 FONTS = '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Playfair+Display:wght@700&display=swap">'
 
 def jl(o): return '<script type="application/ld+json">' + json.dumps(o, ensure_ascii=False) + '</script>'
@@ -185,7 +193,7 @@ def head(title, desc, path, ld=(), robots=None):
     return f'''<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
+{GTM}<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{E(title)}</title>
 <meta name="description" content="{E(desc)}">
@@ -203,7 +211,7 @@ def head(title, desc, path, ld=(), robots=None):
 {''.join(jl(x) for x in ld)}
 </head>
 <body>
-'''
+{GTM_NS}'''
 
 HEADER = '''<header class="site"><div class="wrap">
 <a class="logo" href="/">Grain<span>room</span></a>
@@ -217,13 +225,12 @@ def footer():
         items = ''.join(f'<li><a href="/tools/{t["slug"]}">{E(t["name"])}</a></li>' for t in TOOLS if t['cat'] == c)
         cols += f'<div><h4>{c}</h4><ul>{items}</ul></div>'
     return f'''<footer class="site"><div class="wrap"><div class="cols">
-<div><h4>Grainroom App</h4><ul><li><a href="/editor">Free online photo editor</a></li><li><a href="/tools">All tools</a></li><li><a href="/about">About</a></li><li><a href="/privacy">Privacy</a></li><li><a href="#" data-gr-consent>Cookie settings</a></li><li><a href="/fr">Français</a></li><li><a href="{ISSUES}" rel="noopener">Feedback</a></li></ul></div>
+<div><h4>Grainroom App</h4><ul><li><a href="/editor">Free online photo editor</a></li><li><a href="/tools">All tools</a></li><li><a href="/about">About</a></li><li><a href="/privacy">Privacy</a></li><li><a href="/fr">Français</a></li><li><a href="{ISSUES}" rel="noopener">Feedback</a></li></ul></div>
 {cols}
 </div>
 <p style="margin-top:22px">Grainroom App is a web app that runs in your browser. It is separate from the Grainroom Photo Studio mobile app. © {datetime.date.today().year} Grainroom.</p>
 </div></footer>
 <script defer src="/_vercel/insights/script.js"></script>
-<script defer src="/assets/analytics.js"></script>
 <script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{{}}))</script>
 </body></html>
 '''
@@ -312,7 +319,7 @@ def privacy():
 <p>To make the editor convenient it saves some things in your browser: an autosave of your current project (IndexedDB), small preferences (local storage) and a cache of the site files so it works offline (service worker). This data never leaves your device. You can clear it from your browser settings at any time.</p></section>
 <section class="block"><h2>Analytics and third parties</h2>
 <ul><li>We use Vercel Web Analytics to count page views. It is designed to be privacy-friendly and does not use cookies.</li>
-<li>When enabled, we use Google Tag Manager and Google Analytics to understand which pages and tools are used. It is loaded <strong>only if you click Accept</strong> on the cookie banner, sets cookies (such as _ga) and sends anonymised usage data to Google. You can change your choice any time with “Cookie settings” in the footer. Your photos and files are never part of this data.</li>
+<li>We use Google Tag Manager and Google Analytics to understand which pages and tools are used. They load on every visit, may set cookies (such as _ga) and send anonymised usage data to Google. Your photos and files are never part of this data.</li>
 <li>Fonts are loaded from Google Fonts, which means your browser contacts Google to download them.</li>
 <li>The site is hosted on Vercel, which processes standard server logs such as IP address to deliver pages.</li></ul></section>
 <section class="block"><h2>Contact</h2><p>Questions? Open an issue on <a href="{ISSUES}" rel="noopener">GitHub</a>.</p></section>
